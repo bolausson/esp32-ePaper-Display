@@ -31,6 +31,12 @@ static uint16_t cfg_src_width = 0;   // Expected source width (0 = auto)
 static uint16_t cfg_src_height = 0;  // Expected source height (0 = auto)
 static bool cfg_scale_to_fit = false; // Scale image to fit display
 
+// Transformation settings
+static uint16_t cfg_rotation = 0;      // Rotation: 0, 90, 180, 270
+static bool cfg_mirror_h = false;      // Mirror horizontally
+static bool cfg_mirror_v = false;      // Mirror vertically
+static bool cfg_rotate_first = true;   // Rotate before mirroring
+
 // E-paper 6-color palette (RGB values)
 // Black, White, Yellow, Red, Orange, Blue, Green
 static const uint8_t palette[7][3] = {
@@ -182,10 +188,82 @@ static void scale_image_to_display(void) {
 }
 
 /**
+ * @brief Calculate transformed output coordinates
+ * Applies rotation and mirroring transformations based on config
+ */
+static void transform_coords(uint32_t x, uint32_t y, uint32_t *out_x, uint32_t *out_y) {
+    uint32_t tx = x, ty = y;
+
+    if (cfg_rotate_first) {
+        // Apply rotation first
+        switch (cfg_rotation) {
+            case 90:
+                tx = IMAGE_HEIGHT - 1 - y;
+                ty = x;
+                break;
+            case 180:
+                tx = IMAGE_WIDTH - 1 - x;
+                ty = IMAGE_HEIGHT - 1 - y;
+                break;
+            case 270:
+                tx = y;
+                ty = IMAGE_WIDTH - 1 - x;
+                break;
+            default: // 0 degrees
+                tx = x;
+                ty = y;
+                break;
+        }
+
+        // Then apply mirroring
+        // For 90/270 rotation, dimensions are swapped
+        if (cfg_rotation == 90 || cfg_rotation == 270) {
+            if (cfg_mirror_h) tx = IMAGE_HEIGHT - 1 - tx;
+            if (cfg_mirror_v) ty = IMAGE_WIDTH - 1 - ty;
+        } else {
+            if (cfg_mirror_h) tx = IMAGE_WIDTH - 1 - tx;
+            if (cfg_mirror_v) ty = IMAGE_HEIGHT - 1 - ty;
+        }
+    } else {
+        // Apply mirroring first
+        if (cfg_mirror_h) tx = IMAGE_WIDTH - 1 - tx;
+        if (cfg_mirror_v) ty = IMAGE_HEIGHT - 1 - ty;
+
+        // Then apply rotation
+        uint32_t rx = tx, ry = ty;
+        switch (cfg_rotation) {
+            case 90:
+                tx = IMAGE_HEIGHT - 1 - ry;
+                ty = rx;
+                break;
+            case 180:
+                tx = IMAGE_WIDTH - 1 - rx;
+                ty = IMAGE_HEIGHT - 1 - ry;
+                break;
+            case 270:
+                tx = ry;
+                ty = IMAGE_WIDTH - 1 - rx;
+                break;
+            default: // 0 degrees
+                tx = rx;
+                ty = ry;
+                break;
+        }
+    }
+
+    *out_x = tx;
+    *out_y = ty;
+}
+
+/**
  * @brief Apply Floyd-Steinberg dithering and convert to e-paper format
  */
 static void apply_dithering(uint8_t *output_buffer) {
-    ESP_LOGI(TAG, "Applying Floyd-Steinberg dithering...");
+    ESP_LOGI(TAG, "Applying Floyd-Steinberg dithering (rotation=%d, mirror_h=%d, mirror_v=%d)...",
+             cfg_rotation, cfg_mirror_h, cfg_mirror_v);
+
+    // Clear output buffer
+    memset(output_buffer, 0, IMAGE_BUFFER_SIZE);
 
     for (uint32_t y = 0; y < IMAGE_HEIGHT; y++) {
         for (uint32_t x = 0; x < IMAGE_WIDTH; x++) {
@@ -234,12 +312,18 @@ static void apply_dithering(uint8_t *output_buffer) {
                 rgb_buffer[nidx + 2] += (err_b * 1) / 16;
             }
 
-            // Pack into output buffer (2 pixels per byte)
-            uint32_t out_idx = (y * IMAGE_WIDTH + x) / 2;
-            if ((x & 1) == 0) {
-                output_buffer[out_idx] = (color_idx << 4);
+            // Apply transformation and pack into output buffer
+            uint32_t out_x, out_y;
+            transform_coords(x, y, &out_x, &out_y);
+
+            // For 90/270 rotation, output dimensions are swapped
+            uint32_t out_width = (cfg_rotation == 90 || cfg_rotation == 270) ? IMAGE_HEIGHT : IMAGE_WIDTH;
+            uint32_t out_idx = (out_y * out_width + out_x) / 2;
+
+            if ((out_x & 1) == 0) {
+                output_buffer[out_idx] = (output_buffer[out_idx] & 0x0F) | (color_idx << 4);
             } else {
-                output_buffer[out_idx] |= color_idx;
+                output_buffer[out_idx] = (output_buffer[out_idx] & 0xF0) | color_idx;
             }
         }
 
@@ -292,6 +376,16 @@ void image_processor_set_scaling(uint16_t src_width, uint16_t src_height, bool s
     cfg_scale_to_fit = scale_to_fit;
     ESP_LOGI(TAG, "Scaling config: src=%dx%d, scale_to_fit=%s",
              src_width, src_height, scale_to_fit ? "yes" : "no");
+}
+
+void image_processor_set_transform(uint16_t rotation, bool mirror_h, bool mirror_v, bool rotate_first) {
+    // Normalize rotation to 0, 90, 180, or 270
+    cfg_rotation = (rotation / 90) * 90 % 360;
+    cfg_mirror_h = mirror_h;
+    cfg_mirror_v = mirror_v;
+    cfg_rotate_first = rotate_first;
+    ESP_LOGI(TAG, "Transform config: rotation=%d, mirror_h=%s, mirror_v=%s, rotate_first=%s",
+             cfg_rotation, mirror_h ? "yes" : "no", mirror_v ? "yes" : "no", rotate_first ? "yes" : "no");
 }
 
 esp_err_t image_download_and_process(const char *url, uint8_t *output_buffer) {

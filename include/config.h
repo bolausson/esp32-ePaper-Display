@@ -13,6 +13,10 @@
 #define NVS_IMG_WIDTH       "img_width"
 #define NVS_IMG_HEIGHT      "img_height"
 #define NVS_IMG_SCALE       "img_scale"
+#define NVS_IMG_ROTATION    "img_rot"
+#define NVS_IMG_MIRROR_H    "img_mir_h"
+#define NVS_IMG_MIRROR_V    "img_mir_v"
+#define NVS_IMG_ROT_FIRST   "img_rot_1st"
 
 // WiFi Configuration
 #define WIFI_MAXIMUM_RETRY  5

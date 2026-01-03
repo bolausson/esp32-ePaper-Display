@@ -41,12 +41,18 @@ static uint32_t stored_refresh_interval = 60;  // Default 60 minutes
 static uint16_t stored_img_width = 800;   // Default display width
 static uint16_t stored_img_height = 480;  // Default display height
 static bool stored_img_scale = false;     // Scale image to fit display
+static uint16_t stored_img_rotation = 0;  // Image rotation (0, 90, 180, 270)
+static bool stored_img_mirror_h = false;  // Mirror horizontally
+static bool stored_img_mirror_v = false;  // Mirror vertically
+static bool stored_img_rot_first = true;  // Rotate before mirroring
 
 // Function prototypes
 static void init_nvs(void);
 static void load_credentials_from_nvs(void);
 static void save_credentials_to_nvs(const char *ssid, const char *password, const char *url,
-                                     uint32_t refresh_min, uint16_t img_width, uint16_t img_height, bool img_scale);
+                                     uint32_t refresh_min, uint16_t img_width, uint16_t img_height,
+                                     bool img_scale, uint16_t img_rotation, bool img_mirror_h,
+                                     bool img_mirror_v, bool img_rot_first);
 static void init_led(void);
 static void set_led_color(uint8_t r, uint8_t g, uint8_t b);
 static void led_task(void *pvParameters);
@@ -120,6 +126,22 @@ static void load_credentials_from_nvs(void) {
         if (err == ESP_OK) stored_img_scale = (tmp_u8 != 0);
         else stored_img_scale = false;
 
+        err = nvs_get_u16(nvs_handle, NVS_IMG_ROTATION, &tmp_u16);
+        if (err == ESP_OK) stored_img_rotation = tmp_u16;
+        else stored_img_rotation = 0;
+
+        err = nvs_get_u8(nvs_handle, NVS_IMG_MIRROR_H, &tmp_u8);
+        if (err == ESP_OK) stored_img_mirror_h = (tmp_u8 != 0);
+        else stored_img_mirror_h = false;
+
+        err = nvs_get_u8(nvs_handle, NVS_IMG_MIRROR_V, &tmp_u8);
+        if (err == ESP_OK) stored_img_mirror_v = (tmp_u8 != 0);
+        else stored_img_mirror_v = false;
+
+        err = nvs_get_u8(nvs_handle, NVS_IMG_ROT_FIRST, &tmp_u8);
+        if (err == ESP_OK) stored_img_rot_first = (tmp_u8 != 0);
+        else stored_img_rot_first = true;
+
         nvs_close(nvs_handle);
     } else {
         // Use defaults if NVS read fails
@@ -130,20 +152,29 @@ static void load_credentials_from_nvs(void) {
         stored_img_width = 800;
         stored_img_height = 480;
         stored_img_scale = false;
+        stored_img_rotation = 0;
+        stored_img_mirror_h = false;
+        stored_img_mirror_v = false;
+        stored_img_rot_first = true;
         ESP_LOGI(TAG, "NVS not found, using defaults");
     }
 
-    ESP_LOGI(TAG, "Loaded config - SSID: %s, URL: %s, Refresh: %lu min, Size: %dx%d, Scale: %s",
+    ESP_LOGI(TAG, "Loaded config - SSID: %s, URL: %s, Refresh: %lu min, Size: %dx%d, Scale: %s, Rot: %d, MirH: %s, MirV: %s",
              stored_ssid,
              stored_image_url[0] ? stored_image_url : "(not configured)",
              (unsigned long)stored_refresh_interval,
              stored_img_width, stored_img_height,
-             stored_img_scale ? "yes" : "no");
+             stored_img_scale ? "yes" : "no",
+             stored_img_rotation,
+             stored_img_mirror_h ? "yes" : "no",
+             stored_img_mirror_v ? "yes" : "no");
 }
 
 // Save credentials to NVS
 static void save_credentials_to_nvs(const char *ssid, const char *password, const char *url,
-                                     uint32_t refresh_min, uint16_t img_width, uint16_t img_height, bool img_scale) {
+                                     uint32_t refresh_min, uint16_t img_width, uint16_t img_height,
+                                     bool img_scale, uint16_t img_rotation, bool img_mirror_h,
+                                     bool img_mirror_v, bool img_rot_first) {
     nvs_handle_t nvs_handle;
     esp_err_t err;
 
@@ -156,6 +187,10 @@ static void save_credentials_to_nvs(const char *ssid, const char *password, cons
         nvs_set_u16(nvs_handle, NVS_IMG_WIDTH, img_width);
         nvs_set_u16(nvs_handle, NVS_IMG_HEIGHT, img_height);
         nvs_set_u8(nvs_handle, NVS_IMG_SCALE, img_scale ? 1 : 0);
+        nvs_set_u16(nvs_handle, NVS_IMG_ROTATION, img_rotation);
+        nvs_set_u8(nvs_handle, NVS_IMG_MIRROR_H, img_mirror_h ? 1 : 0);
+        nvs_set_u8(nvs_handle, NVS_IMG_MIRROR_V, img_mirror_v ? 1 : 0);
+        nvs_set_u8(nvs_handle, NVS_IMG_ROT_FIRST, img_rot_first ? 1 : 0);
         nvs_commit(nvs_handle);
         nvs_close(nvs_handle);
 
@@ -167,9 +202,14 @@ static void save_credentials_to_nvs(const char *ssid, const char *password, cons
         stored_img_width = img_width;
         stored_img_height = img_height;
         stored_img_scale = img_scale;
+        stored_img_rotation = img_rotation;
+        stored_img_mirror_h = img_mirror_h;
+        stored_img_mirror_v = img_mirror_v;
+        stored_img_rot_first = img_rot_first;
 
-        ESP_LOGI(TAG, "Config saved - SSID: %s, URL: %s, Refresh: %lu min, Size: %dx%d, Scale: %s",
-                 ssid, url, (unsigned long)refresh_min, img_width, img_height, img_scale ? "yes" : "no");
+        ESP_LOGI(TAG, "Config saved - SSID: %s, URL: %s, Refresh: %lu min, Rot: %d, MirH: %s, MirV: %s",
+                 ssid, url, (unsigned long)refresh_min, img_rotation,
+                 img_mirror_h ? "yes" : "no", img_mirror_v ? "yes" : "no");
     } else {
         ESP_LOGE(TAG, "Failed to open NVS for writing");
     }
@@ -417,6 +457,7 @@ static const char* html_page =
 "<p><strong>Current SSID:</strong> %s</p>"
 "<p><strong>Image URL:</strong> <a href='%s' target='_blank'>%s</a></p>"
 "<p><strong>Refresh:</strong> %lu min | <strong>Size:</strong> %dx%d | <strong>Scale:</strong> %s</p>"
+"<p><strong>Rotation:</strong> %d&deg; | <strong>Mirror H:</strong> %s | <strong>Mirror V:</strong> %s | <strong>Order:</strong> %s</p>"
 "</div>"
 "<form action='/save' method='POST'>"
 "<label for='ssid'>WiFi SSID:</label><br>"
@@ -436,7 +477,30 @@ static const char* html_page =
 "<input type='checkbox' id='img_scale' name='img_scale' value='1' %s>"
 "<label for='img_scale'>Scale image to fit display (800x480)</label>"
 "</div><br>"
-"<input type='submit' value='Save Configuration'>"
+"<label for='img_rotation'>Image Rotation:</label><br>"
+"<select id='img_rotation' name='img_rotation' style='width:100%%;padding:10px;margin:8px 0;border:1px solid #ddd;border-radius:4px;'>"
+"<option value='0' %s>0&deg; (No rotation)</option>"
+"<option value='90' %s>90&deg; (Clockwise)</option>"
+"<option value='180' %s>180&deg; (Upside down)</option>"
+"<option value='270' %s>270&deg; (Counter-clockwise)</option>"
+"</select><br><br>"
+"<div class='checkbox-row'>"
+"<input type='checkbox' id='img_mirror_h' name='img_mirror_h' value='1' %s>"
+"<label for='img_mirror_h'>Mirror Horizontal</label>"
+"</div>"
+"<div class='checkbox-row'>"
+"<input type='checkbox' id='img_mirror_v' name='img_mirror_v' value='1' %s>"
+"<label for='img_mirror_v'>Mirror Vertical</label>"
+"</div><br>"
+"<label for='img_rot_order'>Transform Order:</label><br>"
+"<select id='img_rot_order' name='img_rot_first' style='width:100%%;padding:10px;margin:8px 0;border:1px solid #ddd;border-radius:4px;'>"
+"<option value='1' %s>Rotate then Mirror</option>"
+"<option value='0' %s>Mirror then Rotate</option>"
+"</select><br><br>"
+"<div style='display:flex;gap:10px;'>"
+"<input type='submit' value='Save Configuration' style='flex:1;'>"
+"<input type='submit' formaction='/apply' value='Apply' style='flex:1;background-color:#2196F3;'>"
+"</div>"
 "</form>"
 "<div class='section'>"
 "<h2>Display Test</h2>"
@@ -446,7 +510,7 @@ static const char* html_page =
 "<a href='/action/clear' class='btn btn-test btn-red'>Clear</a>"
 "</div>"
 "</div>"
-"<p style='text-align: center; color: #888; margin-top: 20px;'>After saving, the device will download the image and enter deep sleep.</p>"
+"<p style='text-align: center; color: #888; margin-top: 20px;'><strong>Save:</strong> saves config only. <strong>Apply:</strong> saves, shows image, then sleeps.</p>"
 "</div>"
 "</body>"
 "</html>";
@@ -458,7 +522,7 @@ static esp_err_t root_get_handler(httpd_req_t *req) {
     ESP_LOGI(TAG, "Client connected - serving config page");
 
     // Use static buffer to avoid stack overflow in httpd task
-    static char response[5120];
+    static char response[6144];
 
     // Use safe pointers for potentially empty strings
     const char *display_url = (stored_image_url[0] != '\0') ? stored_image_url : "(not configured)";
@@ -470,13 +534,25 @@ static esp_err_t root_get_handler(httpd_req_t *req) {
              (unsigned long)stored_refresh_interval,
              stored_img_width, stored_img_height,
              stored_img_scale ? "yes" : "no",
+             stored_img_rotation,
+             stored_img_mirror_h ? "yes" : "no",
+             stored_img_mirror_v ? "yes" : "no",
+             stored_img_rot_first ? "Rot-&gt;Mir" : "Mir-&gt;Rot",
              stored_ssid,
              stored_password,
              form_url,
              (unsigned long)stored_refresh_interval,
              stored_img_width,
              stored_img_height,
-             stored_img_scale ? "checked" : "");
+             stored_img_scale ? "checked" : "",
+             (stored_img_rotation == 0) ? "selected" : "",
+             (stored_img_rotation == 90) ? "selected" : "",
+             (stored_img_rotation == 180) ? "selected" : "",
+             (stored_img_rotation == 270) ? "selected" : "",
+             stored_img_mirror_h ? "checked" : "",
+             stored_img_mirror_v ? "checked" : "",
+             stored_img_rot_first ? "selected" : "",
+             stored_img_rot_first ? "" : "selected");
 
     ESP_LOGI(TAG, "Response length: %d bytes", len);
 
@@ -512,11 +588,16 @@ static void url_decode(char *dst, const char *src) {
 
 // Parse POST data
 static void parse_post_data(char *buf, char *ssid, char *password, char *url,
-                             uint32_t *refresh, uint16_t *img_width, uint16_t *img_height, bool *img_scale) {
+                             uint32_t *refresh, uint16_t *img_width, uint16_t *img_height,
+                             bool *img_scale, uint16_t *img_rotation, bool *img_mirror_h,
+                             bool *img_mirror_v, bool *img_rot_first) {
     char *token;
     char *saveptr;
     char temp_str[16] = {0};
-    *img_scale = false;  // Default to false, will be set true if checkbox is present
+    *img_scale = false;      // Default to false, will be set true if checkbox is present
+    *img_mirror_h = false;   // Default to false
+    *img_mirror_v = false;   // Default to false
+    *img_rot_first = true;   // Default to rotate first
 
     token = strtok_r(buf, "&", &saveptr);
     while (token != NULL) {
@@ -551,6 +632,20 @@ static void parse_post_data(char *buf, char *ssid, char *password, char *url,
                 *img_height = (uint16_t)h;
             } else if (strcmp(key, "img_scale") == 0) {
                 *img_scale = true;  // Checkbox is present = checked
+            } else if (strcmp(key, "img_rotation") == 0) {
+                url_decode(temp_str, value);
+                int r = atoi(temp_str);
+                // Normalize to 0, 90, 180, 270
+                r = (r / 90) * 90 % 360;
+                if (r < 0) r = 0;
+                *img_rotation = (uint16_t)r;
+            } else if (strcmp(key, "img_mirror_h") == 0) {
+                *img_mirror_h = true;  // Checkbox is present = checked
+            } else if (strcmp(key, "img_mirror_v") == 0) {
+                *img_mirror_v = true;  // Checkbox is present = checked
+            } else if (strcmp(key, "img_rot_first") == 0) {
+                url_decode(temp_str, value);
+                *img_rot_first = (atoi(temp_str) != 0);
             }
         }
         token = strtok_r(NULL, "&", &saveptr);
@@ -563,7 +658,7 @@ static esp_err_t save_post_handler(httpd_req_t *req) {
     last_client_activity = xTaskGetTickCount() * portTICK_PERIOD_MS / 1000;
     ESP_LOGI(TAG, "Save request received");
 
-    char buf[512];
+    char buf[768];
     char new_ssid[MAX_SSID_LEN] = {0};
     char new_password[MAX_PASSWORD_LEN] = {0};
     char new_url[MAX_URL_LEN] = {0};
@@ -571,6 +666,10 @@ static esp_err_t save_post_handler(httpd_req_t *req) {
     uint16_t new_img_width = 800;
     uint16_t new_img_height = 480;
     bool new_img_scale = false;
+    uint16_t new_img_rotation = 0;
+    bool new_img_mirror_h = false;
+    bool new_img_mirror_v = false;
+    bool new_img_rot_first = true;
     int ret, remaining = req->content_len;
 
     if (remaining > sizeof(buf) - 1) {
@@ -589,15 +688,17 @@ static esp_err_t save_post_handler(httpd_req_t *req) {
 
     // Parse the POST data
     parse_post_data(buf, new_ssid, new_password, new_url, &new_refresh,
-                    &new_img_width, &new_img_height, &new_img_scale);
+                    &new_img_width, &new_img_height, &new_img_scale,
+                    &new_img_rotation, &new_img_mirror_h, &new_img_mirror_v, &new_img_rot_first);
 
-    ESP_LOGI(TAG, "Received config - SSID: %s, URL: %s, Refresh: %lu min, Size: %dx%d, Scale: %s",
+    ESP_LOGI(TAG, "Received config - SSID: %s, URL: %s, Refresh: %lu min, Rot: %d, MirH: %s, MirV: %s",
              new_ssid, new_url, (unsigned long)new_refresh,
-             new_img_width, new_img_height, new_img_scale ? "yes" : "no");
+             new_img_rotation, new_img_mirror_h ? "yes" : "no", new_img_mirror_v ? "yes" : "no");
 
     // Save to NVS
     save_credentials_to_nvs(new_ssid, new_password, new_url, new_refresh,
-                            new_img_width, new_img_height, new_img_scale);
+                            new_img_width, new_img_height, new_img_scale,
+                            new_img_rotation, new_img_mirror_h, new_img_mirror_v, new_img_rot_first);
 
     // Send success response with redirect back to main page
     const char* resp_str =
@@ -612,7 +713,68 @@ static esp_err_t save_post_handler(httpd_req_t *req) {
 
     httpd_resp_send(req, resp_str, HTTPD_RESP_USE_STRLEN);
 
-    // Signal that config was saved
+    // Don't set config_saved - just save, don't trigger apply
+    return ESP_OK;
+}
+
+// Apply POST handler - saves config and triggers image display + sleep
+static esp_err_t apply_post_handler(httpd_req_t *req) {
+    last_client_activity = xTaskGetTickCount() * portTICK_PERIOD_MS / 1000;
+    ESP_LOGI(TAG, "Apply request received");
+
+    char buf[768];
+    char new_ssid[MAX_SSID_LEN] = {0};
+    char new_password[MAX_PASSWORD_LEN] = {0};
+    char new_url[MAX_URL_LEN] = {0};
+    uint32_t new_refresh = 60;
+    uint16_t new_img_width = 800;
+    uint16_t new_img_height = 480;
+    bool new_img_scale = false;
+    uint16_t new_img_rotation = 0;
+    bool new_img_mirror_h = false;
+    bool new_img_mirror_v = false;
+    bool new_img_rot_first = true;
+    int ret, remaining = req->content_len;
+
+    if (remaining > sizeof(buf) - 1) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Content too long");
+        return ESP_FAIL;
+    }
+
+    ret = httpd_req_recv(req, buf, remaining);
+    if (ret <= 0) {
+        if (ret == HTTPD_SOCK_ERR_TIMEOUT) {
+            httpd_resp_send_408(req);
+        }
+        return ESP_FAIL;
+    }
+    buf[ret] = '\0';
+
+    // Parse the POST data
+    parse_post_data(buf, new_ssid, new_password, new_url, &new_refresh,
+                    &new_img_width, &new_img_height, &new_img_scale,
+                    &new_img_rotation, &new_img_mirror_h, &new_img_mirror_v, &new_img_rot_first);
+
+    ESP_LOGI(TAG, "Applying config - SSID: %s, URL: %s", new_ssid, new_url);
+
+    // Save to NVS
+    save_credentials_to_nvs(new_ssid, new_password, new_url, new_refresh,
+                            new_img_width, new_img_height, new_img_scale,
+                            new_img_rotation, new_img_mirror_h, new_img_mirror_v, new_img_rot_first);
+
+    // Send response indicating we're applying
+    const char* resp_str =
+        "<!DOCTYPE html><html><head><meta name='viewport' content='width=device-width, initial-scale=1'>"
+        "<style>body{font-family:Arial;text-align:center;margin-top:50px;background-color:#f0f0f0;}"
+        ".message{background-color:white;padding:30px;border-radius:10px;max-width:400px;margin:0 auto;box-shadow:0 2px 5px rgba(0,0,0,0.1);}"
+        "h1{color:#2196F3;}</style></head><body><div class='message'>"
+        "<h1>&#10004; Applying Configuration...</h1>"
+        "<p>Downloading image and entering deep sleep.</p>"
+        "</div></body></html>";
+
+    httpd_resp_send(req, resp_str, HTTPD_RESP_USE_STRLEN);
+
+    // Signal that config should be applied (triggers image download + sleep)
     config_saved = true;
 
     return ESP_OK;
@@ -717,6 +879,14 @@ static httpd_handle_t start_webserver(void) {
         };
         httpd_register_uri_handler(server, &save);
 
+        httpd_uri_t apply = {
+            .uri       = "/apply",
+            .method    = HTTP_POST,
+            .handler   = apply_post_handler,
+            .user_ctx  = NULL
+        };
+        httpd_register_uri_handler(server, &apply);
+
         httpd_uri_t action = {
             .uri       = "/action/*",
             .method    = HTTP_GET,
@@ -811,8 +981,9 @@ static void do_show_image_from_url(void) {
         return;
     }
 
-    // Configure scaling
+    // Configure scaling and transforms
     image_processor_set_scaling(stored_img_width, stored_img_height, stored_img_scale);
+    image_processor_set_transform(stored_img_rotation, stored_img_mirror_h, stored_img_mirror_v, stored_img_rot_first);
 
     // Download and process image
     ret = image_download_and_process(stored_image_url, image_buffer);
@@ -1047,8 +1218,9 @@ void app_main(void) {
         enter_deep_sleep(stored_refresh_interval);
     }
 
-    // Configure scaling and download image
+    // Configure scaling, transforms, and download image
     image_processor_set_scaling(stored_img_width, stored_img_height, stored_img_scale);
+    image_processor_set_transform(stored_img_rotation, stored_img_mirror_h, stored_img_mirror_v, stored_img_rot_first);
     ESP_LOGI(TAG, "Downloading image from: %s", stored_image_url);
     set_led_color(0, 0, 50);  // Blue while downloading
 

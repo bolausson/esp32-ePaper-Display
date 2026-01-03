@@ -12,6 +12,7 @@ WiFi-enabled firmware for driving a 7-color e-paper display from an ESP32-S3. Do
 - 📥 **Image Download** - Fetches PNG images from any HTTP/HTTPS URL
 - 🎨 **7-Color Dithering** - Floyd-Steinberg dithering for Black, White, Red, Yellow, Orange, Blue, Green
 - 🔄 **Auto Scaling** - Bilinear interpolation to scale images to display size
+- 🔃 **Image Transforms** - Rotate (90°, 180°, 270°) and mirror (horizontal/vertical) images
 - 🌐 **Web Configuration** - Browser-based setup portal for WiFi and image settings
 - 😴 **Deep Sleep** - Configurable refresh interval with ultra-low power sleep
 - 💡 **LED Status** - RGB LED feedback for connection and operation status
@@ -97,7 +98,9 @@ WiFi-enabled firmware for driving a 7-color e-paper display from an ESP32-S3. Do
    - Image URL (PNG, ideally 800×480)
    - Refresh interval (minutes)
    - Image scaling options
-6. Click **Save Configuration**
+   - Image rotation (0°, 90°, 180°, 270°)
+   - Mirror options (horizontal/vertical)
+6. Click **Save Configuration** to save settings, or **Apply** to save and immediately display the image
 
 ### Normal Operation
 
@@ -163,6 +166,10 @@ https://your-grafana-server/render/d/dashboard-id/dashboard-name?width=800&heigh
 | Image Width | Expected source image width | 800 |
 | Image Height | Expected source image height | 480 |
 | Scale to Fit | Scale image to 800×480 | No |
+| Rotation | Rotate image (0°, 90°, 180°, 270°) | 0° |
+| Mirror Horizontal | Flip image horizontally | No |
+| Mirror Vertical | Flip image vertically | No |
+| Transform Order | Apply rotation before or after mirroring | Rotate first |
 
 ## Troubleshooting
 
