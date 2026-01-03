@@ -42,6 +42,15 @@ WiFi-enabled firmware for driving a 7-color e-paper display from an ESP32-S3. Do
 
 > **Pin Selection Rationale:** GPIO 11, 12, 10 are the default SPI2 (HSPI) pins on ESP32-S3. GPIO 7, 8, 9 are general-purpose GPIOs that are safe to use (not strapping pins). This avoids GPIO 0 (boot button), GPIO 48 (LED), and USB pins (19, 20).
 
+### Power Consumption
+
+| State | Power |
+|-------|-------|
+| Active (downloading & displaying) | < 1 W |
+| Deep Sleep | ~0.05 W |
+
+**Example:** Refreshing the display every minute for 10 minutes consumes approximately 0.04 Wh (0.008 Ah) — ideal for battery-powered or solar applications.
+
 ## Software Requirements
 
 - [PlatformIO](https://platformio.org/) (VS Code extension or CLI)
