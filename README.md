@@ -7,6 +7,8 @@ WiFi-enabled firmware for driving a 7-color e-paper display from an ESP32-S3. Do
 
 ![ESP32-S3 ePaper Display](images/ESP32-S3-ePaper.jpg)
 
+![ESP32-S3 ePaper Web UI](images/ESP32-S3-ePaper-WebUI.png)
+
 ## Features
 
 - 📥 **Image Download** - Fetches PNG images from any HTTP/HTTPS URL
