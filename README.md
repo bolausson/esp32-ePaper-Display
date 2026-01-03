@@ -22,7 +22,8 @@ WiFi-enabled firmware for driving a 7-color e-paper display from an ESP32-S3. Do
 | Component | Model |
 |-----------|-------|
 | Microcontroller | ESP32-S3-WROOM with 8MB PSRAM |
-| Display | Waveshare 7.3inch e-Paper (F) - 800×480, 7-color |
+| Display | Waveshare 7.3 inch E Ink Spectra 6 (E6) Full Color E-Paper Display |
+| HAT | Waveshare 7.3 inch e-Paper HAT (E) (epd7in3e) |
 | LED | WS2812 RGB (onboard or external) |
 
 ### Pin Connections
