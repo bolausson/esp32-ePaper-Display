@@ -24,16 +24,23 @@ WiFi-enabled firmware for driving a 7-color e-paper display from an ESP32-S3. Do
 
 ### Pin Connections
 
-| Function | GPIO |
-|----------|------|
-| EPD BUSY | 48 |
-| EPD RST | 47 |
-| EPD DC | 21 |
-| EPD CS | 45 |
-| EPD CLK | 12 |
-| EPD DIN | 11 |
-| WS2812 LED | 38 |
-| Boot Button | 0 |
+| E-Paper Pin | ESP32-S3 GPIO | Notes |
+|-------------|---------------|-------|
+| VCC | 3.3V | Power supply |
+| GND | GND | Ground |
+| DIN (MOSI) | GPIO 11 | SPI2 default MOSI |
+| CLK (SCK) | GPIO 12 | SPI2 default SCK |
+| CS | GPIO 10 | SPI2 default CS |
+| DC | GPIO 9 | Data/Command control |
+| RST | GPIO 8 | Reset |
+| BUSY | GPIO 7 | Busy status input |
+
+| Other | GPIO | Notes |
+|-------|------|-------|
+| WS2812 LED | GPIO 48 | Onboard RGB LED |
+| Boot Button | GPIO 0 | Setup mode trigger |
+
+> **Pin Selection Rationale:** GPIO 11, 12, 10 are the default SPI2 (HSPI) pins on ESP32-S3. GPIO 7, 8, 9 are general-purpose GPIOs that are safe to use (not strapping pins). This avoids GPIO 0 (boot button), GPIO 48 (LED), and USB pins (19, 20).
 
 ## Software Requirements
 
