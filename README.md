@@ -84,6 +84,7 @@ WiFi-enabled firmware for driving a 7-color e-paper display from an ESP32-S3. Do
    ```bash
    pio device monitor
    ```
+   ⚠️ The device monitor may wake the device from deep sleep and start the web server, which is the same behaviour as when the 'boot' button is pressed manually.
 
 ## Usage
 
