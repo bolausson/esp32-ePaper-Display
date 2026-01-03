@@ -49,7 +49,7 @@ WiFi-enabled firmware for driving a 7-color e-paper display from an ESP32-S3. Do
 | Active (downloading & displaying) | < 1 W (< 200 mA at 5 V) |
 | Deep Sleep | ~0.05 W |
 
-**Example:** Refreshing the display every minute for 10 minutes consumes approximately 0.04 Wh (8 mAh at 5 V) — ideal for battery-powered or solar applications.
+**Example:** Refreshing the display every minute for 10 minutes consumes approximately 0.04 Wh (8 mAh at 5 V). For 1 hour of operation (displaying an image every 1 minute), the total energy consumption is around 0.2 Wh (0.04 Ah at 5 V) — ideal for battery-powered or solar applications.
 
 ## Software Requirements
 
