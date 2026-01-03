@@ -2,6 +2,8 @@
 
 WiFi-enabled firmware for driving a 7-color e-paper display from an ESP32-S3. Downloads PNG images from any URL and renders them with Floyd-Steinberg dithering for optimal color reproduction. Perfect for dashboards, weather displays, or digital signage.
 
+![ESP32-S3 ePaper Display](images/ESP32-S3-ePaper.jpg)
+
 ## Features
 
 - 📥 **Image Download** - Fetches PNG images from any HTTP/HTTPS URL
