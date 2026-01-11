@@ -29,8 +29,5 @@ desktop.ini
 # Logs and debug
 *.log
 
-# Sensitive configuration - use wifi_config.h.example as template
-include/wifi_config.h
-
 # ESP-IDF managed components (auto-downloaded on build)
 managed_components/

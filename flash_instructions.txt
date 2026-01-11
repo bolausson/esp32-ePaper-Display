@@ -1,0 +1,126 @@
+================================================================================
+                    ESP32-S3 E-Paper Display - Flash Instructions
+================================================================================
+
+This release contains the following files:
+  - firmware.bin      : Main application firmware
+  - bootloader.bin    : ESP32-S3 bootloader
+  - partitions.bin    : Partition table
+
+--------------------------------------------------------------------------------
+REQUIREMENTS
+--------------------------------------------------------------------------------
+
+1. Python 3.x installed
+2. esptool.py installed:
+   pip install esptool
+
+3. USB cable connected to your ESP32-S3 device
+
+--------------------------------------------------------------------------------
+FIRST-TIME FLASH (Complete Installation)
+--------------------------------------------------------------------------------
+
+For a fresh ESP32-S3 or to completely reinstall, flash all three files:
+
+Windows:
+  esptool.py --chip esp32s3 -p COM9 -b 921600 --before default_reset --after hard_reset write_flash 0x0 bootloader.bin 0x8000 partitions.bin 0x20000 firmware.bin
+
+Linux:
+  esptool.py --chip esp32s3 -p /dev/ttyUSB0 -b 921600 --before default_reset --after hard_reset write_flash 0x0 bootloader.bin 0x8000 partitions.bin 0x20000 firmware.bin
+
+macOS:
+  esptool.py --chip esp32s3 -p /dev/cu.usbserial-* -b 921600 --before default_reset --after hard_reset write_flash 0x0 bootloader.bin 0x8000 partitions.bin 0x20000 firmware.bin
+
+Replace the port (COM9, /dev/ttyUSB0, etc.) with your actual serial port.
+
+--------------------------------------------------------------------------------
+FIRMWARE UPDATE ONLY (USB)
+--------------------------------------------------------------------------------
+
+If you've previously installed the bootloader and partition table:
+
+Windows:
+  esptool.py --chip esp32s3 -p COM9 -b 921600 write_flash 0x20000 firmware.bin
+
+Linux:
+  esptool.py --chip esp32s3 -p /dev/ttyUSB0 -b 921600 write_flash 0x20000 firmware.bin
+
+macOS:
+  esptool.py --chip esp32s3 -p /dev/cu.usbserial-* -b 921600 write_flash 0x20000 firmware.bin
+
+--------------------------------------------------------------------------------
+OTA UPDATE (Over-The-Air / Wireless)
+--------------------------------------------------------------------------------
+
+If the device is already running and connected to your network:
+
+1. Wake the device by pressing the BOOT button (or wait for scheduled wake)
+2. Open a web browser and navigate to http://<device-ip>/
+3. Click the "Firmware Update" tab
+4. Click "Choose File" and select the firmware.bin file
+5. Click "Upload & Install"
+6. Wait for the progress bar to complete (do not disconnect power!)
+7. The device will automatically reboot with the new firmware
+
+Note: OTA update only requires firmware.bin (not bootloader or partitions)
+
+--------------------------------------------------------------------------------
+FINDING YOUR SERIAL PORT
+--------------------------------------------------------------------------------
+
+Windows:
+  - Open Device Manager
+  - Look under "Ports (COM & LPT)"
+  - Find "USB Serial Port" or similar (e.g., COM3, COM9)
+
+Linux:
+  - Run: ls /dev/ttyUSB* /dev/ttyACM*
+  - Usually /dev/ttyUSB0 or /dev/ttyACM0
+
+macOS:
+  - Run: ls /dev/cu.usb*
+  - Usually /dev/cu.usbserial-XXXX
+
+--------------------------------------------------------------------------------
+TROUBLESHOOTING
+--------------------------------------------------------------------------------
+
+"Failed to connect":
+  - Hold the BOOT button while pressing RESET, then release BOOT
+  - Try a different USB cable (some are charge-only)
+  - Check that the correct port is specified
+
+"Permission denied" (Linux):
+  - Add your user to the dialout group:
+    sudo usermod -a -G dialout $USER
+  - Log out and log back in
+
+"Port not found" (macOS):
+  - Install the CP210x or CH340 driver for your USB-serial chip
+
+After flashing:
+  - The device will start in AP mode if no WiFi is configured
+  - Connect to the "ESP32-Display" WiFi network
+  - Open http://192.168.4.1/ to configure
+
+--------------------------------------------------------------------------------
+FLASH MEMORY MAP
+--------------------------------------------------------------------------------
+
+Address     Size        Content
+0x0000      0x8000      Bootloader
+0x8000      0x1000      Partition Table  
+0xF000      0x1000      PHY Init Data (auto-generated)
+0x20000     ~1.2MB      Application (OTA slot 0)
+0x190000    ~1.2MB      Application (OTA slot 1)
+
+--------------------------------------------------------------------------------
+MORE INFORMATION
+--------------------------------------------------------------------------------
+
+GitHub: https://github.com/bolausson/esp32-ePaper-Display
+Documentation: See README.md for full usage instructions
+
+================================================================================
+

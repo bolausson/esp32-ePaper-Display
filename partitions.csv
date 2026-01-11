@@ -1,0 +1,14 @@
+# ESP32-S3 Display OTA Partition Table
+# Name,   Type, SubType, Offset,   Size,     Flags
+# Note: 8MB flash = 0x800000 bytes total
+# Bootloader @ 0x0000 (reserved)
+# Partition table @ 0x8000
+nvs,      data, nvs,     0x9000,   0x6000,
+otadata,  data, ota,     0xf000,   0x2000,
+phy_init, data, phy,     0x11000,  0x1000,
+ota_0,    app,  ota_0,   0x20000,  0x1E0000,
+ota_1,    app,  ota_1,   0x200000, 0x1E0000,
+# ota_0: 0x020000 - 0x1FFFFF = 1,966,080 bytes (~1.87MB)
+# ota_1: 0x200000 - 0x3DFFFF = 1,966,080 bytes (~1.87MB)
+# Remaining: 0x3E0000 - 0x7FFFFF = 4,325,376 bytes (available for future use)
+

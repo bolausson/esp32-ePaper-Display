@@ -17,8 +17,12 @@ WiFi-enabled firmware for driving a 7-color e-paper display from an ESP32-S3. Do
 - 🔃 **Image Transforms** - Rotate (90°, 180°, 270°) and mirror (horizontal/vertical) images
 - 🌐 **Web Configuration** - Browser-based setup portal for WiFi and image settings
 - 😴 **Deep Sleep** - Configurable refresh interval with ultra-low power sleep
+- 📅 **Schedule Plans** - Time-based refresh schedules with day-of-week support
+- 🕐 **NTP Time Sync** - Automatic time synchronization with configurable timezone
+- 📡 **OTA Updates** - Update firmware over-the-air via the web interface
 - 💡 **LED Status** - RGB LED feedback for connection and operation status
 - 🔘 **Setup Mode** - Hold boot button during startup to enter configuration mode
+- 🌍 **Captive Portal** - Auto-redirect to configuration page when in AP mode
 
 ## Hardware
 
@@ -65,17 +69,19 @@ WiFi-enabled firmware for driving a 7-color e-paper display from an ESP32-S3. Do
 
 ## Installation
 
+### Building from Source
+
 1. Clone the repository:
    ```bash
    git clone https://github.com/bolausson/esp32-ePaper-Display.git
    cd esp32-ePaper-Display
    ```
 
-2. Create your WiFi configuration:
+2. Create your WiFi configuration (optional):
    ```bash
    cp include/wifi_config.h.example include/wifi_config.h
    ```
-   Edit `include/wifi_config.h` with your WiFi credentials (optional - can also configure via web interface).
+   Edit `include/wifi_config.h` with your WiFi credentials (can also configure via web interface).
 
 3. Build and upload:
    ```bash
@@ -87,6 +93,44 @@ WiFi-enabled firmware for driving a 7-color e-paper display from an ESP32-S3. Do
    pio device monitor
    ```
    ⚠️ The device monitor may wake the device from deep sleep and start the web server, which is the same behaviour as when the 'boot' button is pressed manually.
+
+### Flashing Pre-built Firmware
+
+If you downloaded a pre-built release, you can flash it using [esptool.py](https://github.com/espressif/esptool):
+
+#### First-Time Flash (Complete)
+
+For a fresh ESP32-S3, flash all three files:
+
+```bash
+esptool.py --chip esp32s3 -p COM9 -b 921600 --before default_reset --after hard_reset write_flash \
+  0x0 bootloader.bin \
+  0x8000 partitions.bin \
+  0x20000 firmware.bin
+```
+
+Replace `COM9` with your serial port (`/dev/ttyUSB0` on Linux, `/dev/cu.usbserial-*` on macOS).
+
+#### Firmware-Only Flash
+
+If you've previously flashed the bootloader and partition table:
+
+```bash
+esptool.py --chip esp32s3 -p COM9 -b 921600 write_flash 0x20000 firmware.bin
+```
+
+### OTA (Over-The-Air) Update
+
+Once the device is running, you can update the firmware wirelessly:
+
+1. Enter setup mode by holding the **Boot button** during wake-up or reset
+2. Connect to the device's web interface (`http://<device-ip>/`)
+3. Navigate to the **Firmware Update** tab
+4. Click **Choose File** and select the new `firmware.bin`
+5. Click **Upload & Install**
+6. Wait for the upload to complete and the device to reboot
+
+The device validates the new firmware on first boot. If it fails to start properly, it will automatically roll back to the previous version.
 
 ## Usage
 
@@ -173,6 +217,67 @@ https://your-grafana-server/render/d/dashboard-id/dashboard-name?width=800&heigh
 | Mirror Horizontal | Flip image horizontally | No |
 | Mirror Vertical | Flip image vertically | No |
 | Transform Order | Apply rotation before or after mirroring | Rotate first |
+| NTP Server | Time server for synchronization | pool.ntp.org |
+| Timezone | TZ database timezone name | Europe/Berlin |
+| Daylight Saving | Enable automatic DST adjustment | Yes |
+| Schedule Enabled | Use schedule-based refresh intervals | No |
+| Schedule Plans | JSON configuration for time-based schedules | Default plan |
+
+### Supported Timezones
+
+The following timezone names are supported (automatically converted to POSIX format):
+
+| Region | Timezones |
+|--------|-----------|
+| Europe | Berlin, London, Paris, Amsterdam, Rome, Madrid, Vienna, Brussels, Stockholm, Oslo, Copenhagen, Helsinki, Athens, Moscow, Zurich |
+| Americas | New_York, Chicago, Denver, Los_Angeles, Phoenix, Toronto, Vancouver, Sao_Paulo, Mexico_City |
+| Asia | Tokyo, Shanghai, Hong_Kong, Singapore, Seoul, Kolkata, Dubai, Bangkok, Jakarta |
+| Australia/Pacific | Sydney, Melbourne, Brisbane, Perth, Auckland, Honolulu |
+| Other | UTC, GMT |
+
+Use the format `Continent/City` (e.g., `Europe/Berlin`, `America/New_York`). You can also enter a POSIX TZ string directly for unsupported timezones.
+
+## Schedule Plans
+
+The Schedule Plans feature allows you to define different refresh intervals based on the time of day and day of week. This is useful for scenarios like:
+- More frequent updates during daytime, less at night
+- Different schedules for weekdays vs weekends
+- Reduced refresh during sleeping hours to save power
+
+### How It Works
+
+1. **Plans** - Create up to 4 named schedule plans (e.g., "Workdays", "Weekend", "Holiday")
+2. **Periods** - Each plan contains time periods with different refresh intervals (up to 8 per plan)
+3. **Day Assignment** - Assign a plan to each day of the week
+
+### Configuration
+
+Access the **Schedule** tab in the web configuration interface:
+
+1. **Enable Schedule** - Check "Enable schedule-based refresh intervals" to activate
+2. **Day Grid** - Shows Mon-Sun with dropdowns to assign a plan to each day (today is highlighted)
+3. **Plan Tabs** - Click to switch between plans, use "+ New" to create additional plans
+4. **Period Table** - Configure start time, end time, and refresh interval (in minutes) for each period
+5. **Presets** - Quick setup buttons:
+   - **Simple**: Single all-day period (00:00-00:00) with 60-minute interval
+   - **Day/Night**: Two periods - daytime (06:00-22:00, 30 min) and nighttime (22:00-06:00, 120 min)
+
+### Example Schedule
+
+| Day | Plan | Time Period | Interval |
+|-----|------|-------------|----------|
+| Mon-Fri | Workdays | 06:00-22:00 | 30 min |
+| Mon-Fri | Workdays | 22:00-06:00 | 120 min |
+| Sat-Sun | Weekend | 00:00-00:00 | 60 min |
+
+### Notes
+
+- When schedule is disabled, the default "Refresh Interval" setting is used
+- Time periods use 24-hour format (HH:MM)
+- A period with start and end time of "00:00" covers the entire day
+- Periods can span midnight (e.g., 22:00-06:00)
+- If no matching period is found for the current time, the default refresh interval is used
+- Schedule evaluation uses the device's local time (synced via NTP)
 
 ## Troubleshooting
 
@@ -189,6 +294,18 @@ https://your-grafana-server/render/d/dashboard-id/dashboard-name?width=800&heigh
 ### Device doesn't wake from sleep
 - Press the Boot button while the device is sleeping
 - The boot button also triggers wake-up from deep sleep
+
+### Time shows incorrect timezone
+- Enter the timezone in `Continent/City` format (e.g., `Europe/Berlin`)
+- Check the [supported timezones](#supported-timezones) list
+- For unsupported timezones, use POSIX TZ format (e.g., `CET-1CEST,M3.5.0,M10.5.0/3`)
+- Click "Sync Now" to force a time update
+
+### OTA update fails
+- Ensure the firmware file is a valid `.bin` file
+- Check that you have enough free space (the device uses A/B partitions)
+- If the device becomes unresponsive after an update, it will auto-rollback after reboot
+- For recovery, flash via USB using esptool
 
 ## License
 
