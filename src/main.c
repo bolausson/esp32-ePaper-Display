@@ -1249,6 +1249,7 @@ static const char* html_display_tab =
 "<input type='text' name='url' value='%s' maxlength='255' required>"
 "<label>Refresh Interval (minutes):</label>"
 "<input type='number' name='refresh' value='%lu' min='1' max='1440' required>"
+"<p style='font-size:0.85em;color:#666;margin-top:2px;'>Used as fallback when schedule is disabled or no period matches.</p>"
 "<label>Image Dimensions:</label>"
 "<div class='row'>"
 "<input type='number' name='img_width' value='%d' min='100' max='2000' placeholder='Width'>"
@@ -1752,9 +1753,7 @@ static esp_err_t save_post_handler(httpd_req_t *req) {
             ESP_LOGW(TAG, "No sched_json field found in request");
         }
     } else {
-        // Handle display tab save (original behavior)
-        char new_ssid[MAX_SSID_LEN] = {0};
-        char new_password[MAX_PASSWORD_LEN] = {0};
+        // Handle display tab save - only save display settings, NOT network settings
         char new_url[MAX_URL_LEN] = {0};
         uint32_t new_refresh = 60;
         uint16_t new_img_width = 800;
@@ -1770,21 +1769,19 @@ static esp_err_t save_post_handler(httpd_req_t *req) {
         strncpy(buf_copy, buf, sizeof(buf_copy) - 1);
         buf_copy[sizeof(buf_copy) - 1] = '\0';
 
-        parse_post_data(buf_copy, new_ssid, new_password, new_url, &new_refresh,
+        // Dummy variables for ssid/password - not used for display tab
+        char dummy_ssid[MAX_SSID_LEN] = {0};
+        char dummy_password[MAX_PASSWORD_LEN] = {0};
+
+        parse_post_data(buf_copy, dummy_ssid, dummy_password, new_url, &new_refresh,
                         &new_img_width, &new_img_height, &new_img_scale,
                         &new_img_rotation, &new_img_mirror_h, &new_img_mirror_v, &new_img_rot_first);
 
-        ESP_LOGI(TAG, "Received config - SSID: %s, URL: %s, Refresh: %lu min, Rot: %d, MirH: %s, MirV: %s",
-                 new_ssid, new_url, (unsigned long)new_refresh,
+        ESP_LOGI(TAG, "Received display config - URL: %s, Refresh: %lu min, Rot: %d, MirH: %s, MirV: %s",
+                 new_url, (unsigned long)new_refresh,
                  new_img_rotation, new_img_mirror_h ? "yes" : "no", new_img_mirror_v ? "yes" : "no");
 
-        // Save network config to NVS (using current stored values for new fields)
-        save_network_config_to_nvs(new_ssid, new_password, stored_hostname, stored_domain,
-                                    stored_use_dhcp, stored_static_ip, stored_static_mask,
-                                    stored_static_gw, stored_dns_primary, stored_dns_secondary,
-                                    stored_dns_search, stored_ntp_server, stored_timezone, stored_use_dst);
-
-        // Save display config to NVS
+        // Save display config to NVS only - DO NOT touch network settings
         save_display_config_to_nvs(new_url, new_refresh, new_img_width, new_img_height,
                                     new_img_scale, new_img_rotation, new_img_mirror_h,
                                     new_img_mirror_v, new_img_rot_first);
@@ -1958,14 +1955,12 @@ static esp_err_t ota_post_handler(httpd_req_t *req) {
     return ESP_OK;  // Never reached
 }
 
-// Apply POST handler - saves config and triggers image display + sleep
+// Apply POST handler - saves display config and triggers image display + sleep
 static esp_err_t apply_post_handler(httpd_req_t *req) {
     last_client_activity = xTaskGetTickCount() * portTICK_PERIOD_MS / 1000;
     ESP_LOGI(TAG, "Apply request received");
 
     char buf[768];
-    char new_ssid[MAX_SSID_LEN] = {0};
-    char new_password[MAX_PASSWORD_LEN] = {0};
     char new_url[MAX_URL_LEN] = {0};
     uint32_t new_refresh = 60;
     uint16_t new_img_width = 800;
@@ -1991,20 +1986,18 @@ static esp_err_t apply_post_handler(httpd_req_t *req) {
     }
     buf[ret] = '\0';
 
+    // Dummy variables for ssid/password - not used for display/apply
+    char dummy_ssid[MAX_SSID_LEN] = {0};
+    char dummy_password[MAX_PASSWORD_LEN] = {0};
+
     // Parse the POST data
-    parse_post_data(buf, new_ssid, new_password, new_url, &new_refresh,
+    parse_post_data(buf, dummy_ssid, dummy_password, new_url, &new_refresh,
                     &new_img_width, &new_img_height, &new_img_scale,
                     &new_img_rotation, &new_img_mirror_h, &new_img_mirror_v, &new_img_rot_first);
 
-    ESP_LOGI(TAG, "Applying config - SSID: %s, URL: %s", new_ssid, new_url);
+    ESP_LOGI(TAG, "Applying display config - URL: %s", new_url);
 
-    // Save network config to NVS (using current stored values for new fields)
-    save_network_config_to_nvs(new_ssid, new_password, stored_hostname, stored_domain,
-                                stored_use_dhcp, stored_static_ip, stored_static_mask,
-                                stored_static_gw, stored_dns_primary, stored_dns_secondary,
-                                stored_dns_search, stored_ntp_server, stored_timezone, stored_use_dst);
-
-    // Save display config to NVS
+    // Save display config to NVS only - DO NOT touch network settings
     save_display_config_to_nvs(new_url, new_refresh, new_img_width, new_img_height,
                                 new_img_scale, new_img_rotation, new_img_mirror_h,
                                 new_img_mirror_v, new_img_rot_first);

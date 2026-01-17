@@ -270,9 +270,19 @@ Access the **Schedule** tab in the web configuration interface:
 | Mon-Fri | Workdays | 22:00-06:00 | 120 min |
 | Sat-Sun | Weekend | 00:00-00:00 | 60 min |
 
+### Refresh Interval Priority
+
+The device determines which refresh interval to use in the following order:
+
+1. **Schedule interval** - If scheduling is enabled AND the current time matches a defined period, that period's interval is used
+2. **Default interval** - The "Refresh Interval" setting from the Display tab is used as a fallback when:
+   - Scheduling is disabled, OR
+   - No schedule period matches the current time
+
+**Note:** Saving settings on the Display tab does NOT affect your schedule configuration. The two are independent — the Display tab interval only serves as a fallback.
+
 ### Notes
 
-- When schedule is disabled, the default "Refresh Interval" setting is used
 - Time periods use 24-hour format (HH:MM)
 - A period with start and end time of "00:00" covers the entire day
 - Periods can span midnight (e.g., 22:00-06:00)
