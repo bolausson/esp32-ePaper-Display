@@ -1425,7 +1425,11 @@ static const char* html_footer =
 "<div class='help'>"
 "<p><strong>Save:</strong> Saves config only</p>"
 "<p><strong>Apply:</strong> Saves, shows image, starts sleep cycle</p>"
-"</div></div></body></html>";
+"</div>"
+"<div style='text-align:center;margin-top:20px;padding:10px;border-top:1px solid #ddd;font-size:0.85em;color:#666;'>"
+"<a href='https://github.com/bolausson/esp32-ePaper-Display' target='_blank' style='color:#2196F3;text-decoration:none;'>GitHub: bolausson/esp32-ePaper-Display</a>"
+"</div>"
+"</div></body></html>";
 
 // Captive portal redirect handler - returns 302 redirect to config page
 static esp_err_t captive_portal_redirect_handler(httpd_req_t *req) {
