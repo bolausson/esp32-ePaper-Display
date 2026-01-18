@@ -16,6 +16,7 @@
 #define NVS_IMG_MIRROR_V    "img_mir_v"
 #define NVS_IMG_ROT_FIRST   "img_rot_1st"
 #define NVS_REFRESH_MIN     "refresh_min"
+#define NVS_LED_DISABLED    "led_disabled"
 
 // NVS Storage Keys - WiFi Settings
 #define NVS_WIFI_SSID       "wifi_ssid"
@@ -68,7 +69,7 @@
 // Maximum string lengths
 #define MAX_SSID_LEN        32
 #define MAX_PASSWORD_LEN    64
-#define MAX_URL_LEN         256
+#define MAX_URL_LEN         2048
 #define MAX_HOSTNAME_LEN    64
 #define MAX_DOMAIN_LEN      64
 #define MAX_IP_LEN          16
