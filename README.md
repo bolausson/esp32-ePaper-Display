@@ -172,6 +172,8 @@ Hold the **Boot button** while pressing **Reset**, or during wake-up from deep s
 | Cyan | Solid | Updating display |
 | Blue | 3 blinks | Entering deep sleep |
 
+> **Tip:** The status LED can be disabled entirely via the "Disable Status LED" checkbox in the Display tab. When disabled, the LED remains off during all operations.
+
 ## Image Requirements
 
 - **Format:** PNG
@@ -208,7 +210,7 @@ https://your-grafana-server/render/d/dashboard-id/dashboard-name?width=800&heigh
 |---------|-------------|---------|
 | WiFi SSID | Your WiFi network name | - |
 | WiFi Password | Your WiFi password | - |
-| Image URL | URL to PNG image | - |
+| Image URL | URL to PNG image (max 2048 characters) | - |
 | Refresh Interval | Minutes between updates | 60 |
 | Image Width | Expected source image width | 800 |
 | Image Height | Expected source image height | 480 |
@@ -217,6 +219,7 @@ https://your-grafana-server/render/d/dashboard-id/dashboard-name?width=800&heigh
 | Mirror Horizontal | Flip image horizontally | No |
 | Mirror Vertical | Flip image vertically | No |
 | Transform Order | Apply rotation before or after mirroring | Rotate first |
+| Disable Status LED | Turn off the RGB status LED entirely | No |
 | NTP Server | Time server for synchronization | pool.ntp.org |
 | Timezone | TZ database timezone name | Europe/Berlin |
 | Daylight Saving | Enable automatic DST adjustment | Yes |
