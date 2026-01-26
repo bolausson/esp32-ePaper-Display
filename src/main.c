@@ -25,6 +25,7 @@
 #include "config.h"
 #include "epd_7in3e.h"
 #include "image_processor.h"
+#include "error_display.h"
 
 // Firmware version for OTA
 #define FIRMWARE_VERSION "1.0.0"
@@ -1028,8 +1029,8 @@ static const char* html_styles =
 ".tab:hover{color:#2196F3;}"
 ".tab-content{display:none;}"
 ".tab-content.active{display:block;}"
-"input[type=text],input[type=password],input[type=number],select{width:100%%;padding:10px;margin:8px 0;box-sizing:border-box;border:1px solid #ddd;border-radius:4px;}"
-"input[type=submit],.btn{background:#4CAF50;color:white;padding:12px 20px;border:none;border-radius:4px;cursor:pointer;width:100%%;font-size:16px;margin:5px 0;display:block;text-align:center;text-decoration:none;box-sizing:border-box;}"
+"input[type=text],input[type=password],input[type=number],select{width:100%;padding:10px;margin:8px 0;box-sizing:border-box;border:1px solid #ddd;border-radius:4px;}"
+"input[type=submit],.btn{background:#4CAF50;color:white;padding:12px 20px;border:none;border-radius:4px;cursor:pointer;width:100%;font-size:16px;margin:5px 0;display:block;text-align:center;text-decoration:none;box-sizing:border-box;}"
 "input[type=submit]:hover,.btn:hover{opacity:0.9;}"
 ".btn-test{width:auto!important;display:inline-block!important;padding:10px 20px;}"
 ".test-buttons{display:flex;flex-wrap:wrap;gap:8px;}"
@@ -1063,10 +1064,10 @@ static const char* html_styles =
 ".sync-btn{background:#2196F3;color:white;border:none;padding:8px 16px;border-radius:4px;cursor:pointer;font-size:14px;margin-top:10px;}"
 ".sync-btn:hover{background:#1976D2;}"
 ".sync-btn:disabled{background:#ccc;cursor:not-allowed;}"
-".sync-btn .spinner{display:inline-block;width:12px;height:12px;border:2px solid #fff;border-top-color:transparent;border-radius:50%%;animation:spin 1s linear infinite;margin-right:6px;vertical-align:middle;}"
+".sync-btn .spinner{display:inline-block;width:12px;height:12px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;animation:spin 1s linear infinite;margin-right:6px;vertical-align:middle;}"
 "@keyframes spin{to{transform:rotate(360deg);}}"
 ".progress-container{background:#e0e0e0;border-radius:4px;height:24px;margin:15px 0;overflow:hidden;}"
-".progress-bar{background:#4CAF50;height:100%%;width:0%%;transition:width 0.3s;display:flex;align-items:center;justify-content:center;color:white;font-size:12px;}"
+".progress-bar{background:#4CAF50;height:100%;width:0%;transition:width 0.3s;display:flex;align-items:center;justify-content:center;color:white;font-size:12px;}"
 ".ota-status{padding:10px;margin:10px 0;border-radius:4px;display:none;}"
 ".ota-success{background:#d4edda;border:1px solid #c3e6cb;color:#155724;}"
 ".ota-error{background:#f8d7da;border:1px solid #f5c6cb;color:#721c24;}"
@@ -1083,8 +1084,8 @@ static const char* html_styles =
 ".day-card{text-align:center;padding:8px 4px;border:2px solid #e0e0e0;border-radius:6px;background:#fafafa;min-width:70px;flex:1 1 auto;max-width:100px;}"
 ".day-card.today{border-color:#4CAF50;background:#e8f5e9;}"
 ".day-name{font-weight:600;font-size:12px;margin-bottom:4px;}"
-".day-card select{width:100%%;padding:3px;font-size:11px;border-radius:4px;}"
-".period-table{width:100%%;border-collapse:collapse;margin:8px 0;}"
+".day-card select{width:100%;padding:3px;font-size:11px;border-radius:4px;}"
+".period-table{width:100%;border-collapse:collapse;margin:8px 0;}"
 ".period-table th{text-align:left;padding:6px;background:#f5f5f5;font-size:12px;}"
 ".period-table td{padding:4px;}"
 ".period-table input[type=time]{width:80px;padding:4px;font-size:12px;}"
@@ -1119,16 +1120,16 @@ static const char* html_script =
 "var uploadBtn=document.getElementById('upload-btn');"
 "uploadBtn.disabled=true;"
 "statusDiv.style.display='none';"
-"progressBar.style.width='0%%';"
-"progressText.textContent='0%%';"
+"progressBar.style.width='0%';"
+"progressText.textContent='0%';"
 "document.querySelector('.progress-container').style.display='block';"
 "var xhr=new XMLHttpRequest();"
 "xhr.open('POST','/ota',true);"
 "xhr.upload.onprogress=function(e){"
 "if(e.lengthComputable){"
 "var pct=Math.round((e.loaded/e.total)*100);"
-"progressBar.style.width=pct+'%%';"
-"progressText.textContent=pct+'%%';"
+"progressBar.style.width=pct+'%';"
+"progressText.textContent=pct+'%';"
 "}};"
 "xhr.onload=function(){"
 "uploadBtn.disabled=false;"
@@ -2489,9 +2490,10 @@ static void do_show_image_from_url(void) {
     // Initialize image processor
     ret = image_processor_init();
     if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to init image processor: %s", image_processor_get_error());
+        const char *err_msg = image_processor_get_error();
+        ESP_LOGE(TAG, "Failed to init image processor: %s", err_msg);
         set_led_color(50, 0, 0);
-        epd_7in3e_show_color_blocks();  // Fallback
+        error_display_show(error_display_categorize(err_msg), err_msg);
         epd_7in3e_sleep();
         return;
     }
@@ -2501,7 +2503,9 @@ static void do_show_image_from_url(void) {
     if (image_buffer == NULL) {
         ESP_LOGE(TAG, "Failed to allocate image buffer");
         set_led_color(50, 0, 0);
+        error_display_show(ERROR_TYPE_INIT, "Failed to allocate image buffer");
         image_processor_deinit();
+        epd_7in3e_sleep();
         return;
     }
 
@@ -2512,9 +2516,10 @@ static void do_show_image_from_url(void) {
     // Download and process image
     ret = image_download_and_process(stored_image_url, image_buffer);
     if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to download/process image: %s", image_processor_get_error());
+        const char *err_msg = image_processor_get_error();
+        ESP_LOGE(TAG, "Failed to download/process image: %s", err_msg);
         set_led_color(50, 0, 0);
-        epd_7in3e_show_color_blocks();  // Fallback
+        error_display_show(error_display_categorize(err_msg), err_msg);
     } else {
         set_led_color(0, 50, 50);  // Cyan while displaying
         epd_7in3e_display(image_buffer);
@@ -2814,9 +2819,10 @@ void app_main(void) {
     ESP_LOGI(TAG, "Initializing image processor...");
     esp_err_t img_ret = image_processor_init();
     if (img_ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to initialize image processor: %s", image_processor_get_error());
-        ESP_LOGI(TAG, "Falling back to color test pattern");
-        epd_7in3e_show_color_blocks();
+        const char *err_msg = image_processor_get_error();
+        ESP_LOGE(TAG, "Failed to initialize image processor: %s", err_msg);
+        ESP_LOGI(TAG, "Displaying error screen");
+        error_display_show(error_display_categorize(err_msg), err_msg);
         epd_7in3e_sleep();
         enter_deep_sleep(get_effective_refresh_interval());
     }
@@ -2825,8 +2831,8 @@ void app_main(void) {
     uint8_t *image_buffer = heap_caps_malloc(IMAGE_BUFFER_SIZE, MALLOC_CAP_SPIRAM);
     if (image_buffer == NULL) {
         ESP_LOGE(TAG, "Failed to allocate image buffer in PSRAM");
-        ESP_LOGI(TAG, "Falling back to color test pattern");
-        epd_7in3e_show_color_blocks();
+        ESP_LOGI(TAG, "Displaying error screen");
+        error_display_show(ERROR_TYPE_INIT, "Failed to allocate image buffer in PSRAM");
         image_processor_deinit();
         epd_7in3e_sleep();
         enter_deep_sleep(get_effective_refresh_interval());
@@ -2840,11 +2846,12 @@ void app_main(void) {
 
     img_ret = image_download_and_process(stored_image_url, image_buffer);
     if (img_ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to download/process image: %s", image_processor_get_error());
-        ESP_LOGI(TAG, "Falling back to color test pattern");
+        const char *err_msg = image_processor_get_error();
+        ESP_LOGE(TAG, "Failed to download/process image: %s", err_msg);
+        ESP_LOGI(TAG, "Displaying error screen");
         set_led_color(50, 0, 0);  // Red on error
         vTaskDelay(pdMS_TO_TICKS(1000));
-        epd_7in3e_show_color_blocks();
+        error_display_show(error_display_categorize(err_msg), err_msg);
     } else {
         ESP_LOGI(TAG, "Image processed successfully, displaying...");
         set_led_color(0, 50, 50);  // Cyan while displaying

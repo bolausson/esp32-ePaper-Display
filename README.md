@@ -20,6 +20,7 @@ WiFi-enabled firmware for driving a 7-color e-paper display from an ESP32-S3. Do
 - 📅 **Schedule Plans** - Time-based refresh schedules with day-of-week support
 - 🕐 **NTP Time Sync** - Automatic time synchronization with configurable timezone
 - 📡 **OTA Updates** - Update firmware over-the-air via the web interface
+- ⚠️ **Error Display** - User-friendly error messages on screen when image loading fails
 - 💡 **LED Status** - RGB LED feedback for connection and operation status
 - 🔘 **Setup Mode** - Hold boot button during startup to enter configuration mode
 - 🌍 **Captive Portal** - Auto-redirect to configuration page when in AP mode
