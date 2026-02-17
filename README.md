@@ -33,6 +33,7 @@ WiFi-enabled firmware for driving a 7-color e-paper display from an ESP32-S3. Do
 | Display | Waveshare 7.3 inch E Ink Spectra 6 (E6) Full Color E-Paper Display |
 | HAT | Waveshare 7.3 inch e-Paper HAT (E) (epd7in3e) |
 | LED | WS2812 RGB (onboard or external) |
+| Frame | My 3D model is available on [Makerworld](https://makerworld.com/models/1924771?appSharePlatform=copy) |
 
 ### Pin Connections
 
