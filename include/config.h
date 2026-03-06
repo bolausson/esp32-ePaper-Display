@@ -17,6 +17,7 @@
 #define NVS_IMG_ROT_FIRST   "img_rot_1st"
 #define NVS_REFRESH_MIN     "refresh_min"
 #define NVS_LED_DISABLED    "led_disabled"
+#define NVS_SSL_SKIP        "ssl_skip"
 
 // NVS Storage Keys - WiFi Settings
 #define NVS_WIFI_SSID       "wifi_ssid"

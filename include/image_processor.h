@@ -41,6 +41,12 @@ void image_processor_set_scaling(uint16_t src_width, uint16_t src_height, bool s
 void image_processor_set_transform(uint16_t rotation, bool mirror_h, bool mirror_v, bool rotate_first);
 
 /**
+ * @brief Set SSL certificate verification mode
+ * @param skip If true, skip SSL certificate verification (allow self-signed certs)
+ */
+void image_processor_set_ssl_skip(bool skip);
+
+/**
  * @brief Download and process an image from URL
  * @param url The URL to download the image from
  * @param output_buffer Buffer to store the processed image (must be IMAGE_BUFFER_SIZE bytes)

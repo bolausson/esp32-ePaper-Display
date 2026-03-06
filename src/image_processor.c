@@ -37,6 +37,9 @@ static bool cfg_mirror_h = false;      // Mirror horizontally
 static bool cfg_mirror_v = false;      // Mirror vertically
 static bool cfg_rotate_first = true;   // Rotate before mirroring
 
+// SSL settings
+static bool cfg_skip_ssl = false;      // Skip SSL certificate verification
+
 // E-paper 6-color palette (RGB values)
 // Black, White, Yellow, Red, Orange, Blue, Green
 static const uint8_t palette[7][3] = {
@@ -388,6 +391,11 @@ void image_processor_set_transform(uint16_t rotation, bool mirror_h, bool mirror
              cfg_rotation, mirror_h ? "yes" : "no", mirror_v ? "yes" : "no", rotate_first ? "yes" : "no");
 }
 
+void image_processor_set_ssl_skip(bool skip) {
+    cfg_skip_ssl = skip;
+    ESP_LOGI(TAG, "SSL verification: %s", skip ? "SKIP (allow self-signed)" : "ENFORCE");
+}
+
 esp_err_t image_download_and_process(const char *url, uint8_t *output_buffer) {
     esp_err_t ret = ESP_OK;
     pngle_t *pngle = NULL;
@@ -422,11 +430,18 @@ esp_err_t image_download_and_process(const char *url, uint8_t *output_buffer) {
     esp_http_client_config_t config = {
         .url = url,
         .event_handler = http_event_handler,
-        .crt_bundle_attach = esp_crt_bundle_attach,
         .timeout_ms = 30000,
         .buffer_size = 4096,
         .buffer_size_tx = 1024,
     };
+
+    if (cfg_skip_ssl) {
+        config.skip_cert_common_name_check = true;
+        config.crt_bundle_attach = NULL;
+        ESP_LOGW(TAG, "SSL certificate verification DISABLED for this request");
+    } else {
+        config.crt_bundle_attach = esp_crt_bundle_attach;
+    }
 
     esp_http_client_handle_t client = esp_http_client_init(&config);
     if (client == NULL) {

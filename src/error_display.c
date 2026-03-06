@@ -336,6 +336,14 @@ error_type_t error_display_categorize(const char *error_msg) {
         return ERROR_TYPE_HTTP;
     }
 
+    // Check for TLS/SSL errors
+    if (strstr(error_msg, "TLS") || strstr(error_msg, "SSL") ||
+        strstr(error_msg, "tls") || strstr(error_msg, "ssl") ||
+        strstr(error_msg, "certificate") || strstr(error_msg, "MBEDTLS") ||
+        strstr(error_msg, "handshake")) {
+        return ERROR_TYPE_NETWORK;
+    }
+
     // Check for network errors
     if (strstr(error_msg, "network") || strstr(error_msg, "connect") ||
         strstr(error_msg, "WiFi") || strstr(error_msg, "DNS") ||

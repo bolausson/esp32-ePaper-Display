@@ -81,6 +81,7 @@ static bool stored_img_mirror_h = false;  // Mirror horizontally
 static bool stored_img_mirror_v = false;  // Mirror vertically
 static bool stored_img_rot_first = true;  // Rotate before mirroring
 static bool stored_led_disabled = false;  // Disable status LED
+static bool stored_ssl_skip = false;     // Skip SSL certificate verification
 
 // Storage for schedule plans
 static char stored_schedule_json[MAX_SCHEDULE_JSON] = {0};
@@ -109,7 +110,7 @@ static void save_display_config_to_nvs(const char *url, uint32_t refresh_min,
                                         uint16_t img_width, uint16_t img_height,
                                         bool img_scale, uint16_t img_rotation,
                                         bool img_mirror_h, bool img_mirror_v, bool img_rot_first,
-                                        bool led_disabled);
+                                        bool led_disabled, bool ssl_skip);
 static void save_network_config_to_nvs(const char *ssid, const char *password,
                                         const char *hostname, const char *domain,
                                         bool use_dhcp, const char *static_ip, const char *static_mask,
@@ -221,6 +222,7 @@ static void load_config_from_nvs(void) {
     if (nvs_get_u8(nvs_handle, NVS_IMG_MIRROR_V, &tmp_u8) == ESP_OK) stored_img_mirror_v = (tmp_u8 != 0);
     if (nvs_get_u8(nvs_handle, NVS_IMG_ROT_FIRST, &tmp_u8) == ESP_OK) stored_img_rot_first = (tmp_u8 != 0);
     if (nvs_get_u8(nvs_handle, NVS_LED_DISABLED, &tmp_u8) == ESP_OK) stored_led_disabled = (tmp_u8 != 0);
+    if (nvs_get_u8(nvs_handle, NVS_SSL_SKIP, &tmp_u8) == ESP_OK) stored_ssl_skip = (tmp_u8 != 0);
 
     // Load schedule settings
     size_t sched_len = MAX_SCHEDULE_JSON;
@@ -265,7 +267,7 @@ static void save_display_config_to_nvs(const char *url, uint32_t refresh_min,
                                         uint16_t img_width, uint16_t img_height,
                                         bool img_scale, uint16_t img_rotation,
                                         bool img_mirror_h, bool img_mirror_v, bool img_rot_first,
-                                        bool led_disabled) {
+                                        bool led_disabled, bool ssl_skip) {
     nvs_handle_t nvs_handle;
     esp_err_t err;
 
@@ -281,6 +283,7 @@ static void save_display_config_to_nvs(const char *url, uint32_t refresh_min,
         nvs_set_u8(nvs_handle, NVS_IMG_MIRROR_V, img_mirror_v ? 1 : 0);
         nvs_set_u8(nvs_handle, NVS_IMG_ROT_FIRST, img_rot_first ? 1 : 0);
         nvs_set_u8(nvs_handle, NVS_LED_DISABLED, led_disabled ? 1 : 0);
+        nvs_set_u8(nvs_handle, NVS_SSL_SKIP, ssl_skip ? 1 : 0);
         nvs_commit(nvs_handle);
         nvs_close(nvs_handle);
 
@@ -295,9 +298,10 @@ static void save_display_config_to_nvs(const char *url, uint32_t refresh_min,
         stored_img_mirror_v = img_mirror_v;
         stored_img_rot_first = img_rot_first;
         stored_led_disabled = led_disabled;
+        stored_ssl_skip = ssl_skip;
 
-        ESP_LOGI(TAG, "Display config saved - URL: %s, Refresh: %lu min, Rot: %d, LED disabled: %s",
-                 url, (unsigned long)refresh_min, img_rotation, led_disabled ? "yes" : "no");
+        ESP_LOGI(TAG, "Display config saved - URL: %s, Refresh: %lu min, Rot: %d, LED disabled: %s, SSL skip: %s",
+                 url, (unsigned long)refresh_min, img_rotation, led_disabled ? "yes" : "no", ssl_skip ? "yes" : "no");
     } else {
         ESP_LOGE(TAG, "Failed to open NVS for writing");
     }
@@ -1305,6 +1309,11 @@ static const char* html_display_tab =
 "<label>Image URL:</label>"
 "<textarea name='url' maxlength='2047' required style='width:100%%;resize:vertical;min-height:80px;box-sizing:border-box;font-family:inherit;font-size:inherit;'>%s</textarea>"
 "<p style='font-size:0.85em;color:#666;margin-top:2px;'>Maximum 2048 characters. Supports long URLs including signed cloud storage URLs.</p>"
+"<label>SSL Certificate Verification:</label>"
+"<div class='checkbox-row'>"
+"<input type='checkbox' name='ssl_skip' value='1' %s>"
+"<label>Skip SSL verification (allow self-signed certificates)</label>"
+"</div>"
 "<label>Refresh Interval (minutes):</label>"
 "<input type='number' name='refresh' value='%lu' min='1' max='1440' required>"
 "<p style='font-size:0.85em;color:#666;margin-top:2px;'>Used as fallback when schedule is disabled or no period matches.</p>"
@@ -1590,6 +1599,7 @@ static esp_err_t root_get_handler(httpd_req_t *req) {
              stored_img_width, stored_img_height,
              stored_img_scale ? "yes" : "no",
              form_url,
+             stored_ssl_skip ? "checked" : "",
              (unsigned long)stored_refresh_interval,
              stored_img_width, stored_img_height,
              stored_img_scale ? "checked" : "",
@@ -1701,7 +1711,8 @@ static void url_decode(char *dst, const char *src) {
 static void parse_post_data(char *buf, char *ssid, char *password, char *url,
                              uint32_t *refresh, uint16_t *img_width, uint16_t *img_height,
                              bool *img_scale, uint16_t *img_rotation, bool *img_mirror_h,
-                             bool *img_mirror_v, bool *img_rot_first, bool *led_disabled) {
+                             bool *img_mirror_v, bool *img_rot_first, bool *led_disabled,
+                             bool *ssl_skip) {
     char *token;
     char *saveptr;
     char temp_str[16] = {0};
@@ -1710,6 +1721,7 @@ static void parse_post_data(char *buf, char *ssid, char *password, char *url,
     *img_mirror_v = false;   // Default to false
     *img_rot_first = true;   // Default to rotate first
     *led_disabled = false;   // Default to false
+    *ssl_skip = false;       // Default to false (verify SSL)
 
     token = strtok_r(buf, "&", &saveptr);
     while (token != NULL) {
@@ -1760,6 +1772,8 @@ static void parse_post_data(char *buf, char *ssid, char *password, char *url,
                 *img_rot_first = (atoi(temp_str) != 0);
             } else if (strcmp(key, "led_disabled") == 0) {
                 *led_disabled = true;  // Checkbox is present = checked
+            } else if (strcmp(key, "ssl_skip") == 0) {
+                *ssl_skip = true;  // Checkbox is present = checked
             }
         }
         token = strtok_r(NULL, "&", &saveptr);
@@ -1858,6 +1872,7 @@ static esp_err_t save_post_handler(httpd_req_t *req) {
         bool new_img_mirror_v = false;
         bool new_img_rot_first = true;
         bool new_led_disabled = false;
+        bool new_ssl_skip = false;
 
         // Make a copy since parse_post_data modifies the buffer
         char buf_copy[3072];
@@ -1871,17 +1886,18 @@ static esp_err_t save_post_handler(httpd_req_t *req) {
         parse_post_data(buf_copy, dummy_ssid, dummy_password, new_url, &new_refresh,
                         &new_img_width, &new_img_height, &new_img_scale,
                         &new_img_rotation, &new_img_mirror_h, &new_img_mirror_v, &new_img_rot_first,
-                        &new_led_disabled);
+                        &new_led_disabled, &new_ssl_skip);
 
-        ESP_LOGI(TAG, "Received display config - URL: %s, Refresh: %lu min, Rot: %d, MirH: %s, MirV: %s, LED disabled: %s",
+        ESP_LOGI(TAG, "Received display config - URL: %s, Refresh: %lu min, Rot: %d, MirH: %s, MirV: %s, LED disabled: %s, SSL skip: %s",
                  new_url, (unsigned long)new_refresh,
                  new_img_rotation, new_img_mirror_h ? "yes" : "no", new_img_mirror_v ? "yes" : "no",
-                 new_led_disabled ? "yes" : "no");
+                 new_led_disabled ? "yes" : "no", new_ssl_skip ? "yes" : "no");
 
         // Save display config to NVS only - DO NOT touch network settings
         save_display_config_to_nvs(new_url, new_refresh, new_img_width, new_img_height,
                                     new_img_scale, new_img_rotation, new_img_mirror_h,
-                                    new_img_mirror_v, new_img_rot_first, new_led_disabled);
+                                    new_img_mirror_v, new_img_rot_first, new_led_disabled,
+                                    new_ssl_skip);
     }
 
     // Send success response with redirect back to main page
@@ -2068,6 +2084,7 @@ static esp_err_t apply_post_handler(httpd_req_t *req) {
     bool new_img_mirror_v = false;
     bool new_img_rot_first = true;
     bool new_led_disabled = false;
+    bool new_ssl_skip = false;
     int ret, remaining = req->content_len;
 
     if (remaining > sizeof(buf) - 1) {
@@ -2092,14 +2109,16 @@ static esp_err_t apply_post_handler(httpd_req_t *req) {
     parse_post_data(buf, dummy_ssid, dummy_password, new_url, &new_refresh,
                     &new_img_width, &new_img_height, &new_img_scale,
                     &new_img_rotation, &new_img_mirror_h, &new_img_mirror_v, &new_img_rot_first,
-                    &new_led_disabled);
+                    &new_led_disabled, &new_ssl_skip);
 
-    ESP_LOGI(TAG, "Applying display config - URL: %s, LED disabled: %s", new_url, new_led_disabled ? "yes" : "no");
+    ESP_LOGI(TAG, "Applying display config - URL: %s, LED disabled: %s, SSL skip: %s",
+             new_url, new_led_disabled ? "yes" : "no", new_ssl_skip ? "yes" : "no");
 
     // Save display config to NVS only - DO NOT touch network settings
     save_display_config_to_nvs(new_url, new_refresh, new_img_width, new_img_height,
                                 new_img_scale, new_img_rotation, new_img_mirror_h,
-                                new_img_mirror_v, new_img_rot_first, new_led_disabled);
+                                new_img_mirror_v, new_img_rot_first, new_led_disabled,
+                                new_ssl_skip);
 
     // Send response indicating we're applying
     const char* resp_str =
@@ -2603,9 +2622,10 @@ static void do_show_image_from_url(void) {
         return;
     }
 
-    // Configure scaling and transforms
+    // Configure scaling, transforms, and SSL
     image_processor_set_scaling(stored_img_width, stored_img_height, stored_img_scale);
     image_processor_set_transform(stored_img_rotation, stored_img_mirror_h, stored_img_mirror_v, stored_img_rot_first);
+    image_processor_set_ssl_skip(stored_ssl_skip);
 
     // Download and process image
     ret = image_download_and_process(stored_image_url, image_buffer);
@@ -2942,9 +2962,10 @@ void app_main(void) {
         enter_deep_sleep(get_effective_refresh_interval());
     }
 
-    // Configure scaling, transforms, and download image
+    // Configure scaling, transforms, SSL, and download image
     image_processor_set_scaling(stored_img_width, stored_img_height, stored_img_scale);
     image_processor_set_transform(stored_img_rotation, stored_img_mirror_h, stored_img_mirror_v, stored_img_rot_first);
+    image_processor_set_ssl_skip(stored_ssl_skip);
     ESP_LOGI(TAG, "Downloading image from: %s", stored_image_url);
     set_led_color(0, 0, 50);  // Blue while downloading
 
