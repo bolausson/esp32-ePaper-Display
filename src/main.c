@@ -26,6 +26,7 @@
 #include "epd_7in3e.h"
 #include "image_processor.h"
 #include "error_display.h"
+#include "syslog_remote.h"
 
 // Firmware version for OTA
 #define FIRMWARE_VERSION "1.0.0"
@@ -69,8 +70,6 @@ static char stored_dns_search[MAX_DOMAIN_LEN] = {0};
 // Storage for time configuration
 static char stored_ntp_server[MAX_NTP_SERVER_LEN] = {0};
 static char stored_timezone[MAX_TIMEZONE_LEN] = {0};
-static bool stored_use_dst = true;
-
 // Storage for display settings
 static char stored_image_url[MAX_URL_LEN] = {0};
 static uint32_t stored_refresh_interval = 60;  // Default 60 minutes
@@ -86,6 +85,13 @@ static bool stored_led_disabled = false;  // Disable status LED
 // Storage for schedule plans
 static char stored_schedule_json[MAX_SCHEDULE_JSON] = {0};
 static bool stored_schedule_enabled = false;
+
+// Storage for syslog configuration
+static char stored_syslog_host[MAX_SYSLOG_HOST_LEN] = {0};
+static uint16_t stored_syslog_port = DEFAULT_SYSLOG_PORT;
+static bool stored_syslog_enabled = false;
+static uint8_t stored_syslog_format = 0;    // 0=RFC3164, 1=RFC5424
+static uint8_t stored_syslog_transport = 0; // 0=UDP, 1=TCP
 
 // Default schedule JSON (simple all-day plan)
 static const char* default_schedule_json =
@@ -108,7 +114,7 @@ static void save_network_config_to_nvs(const char *ssid, const char *password,
                                         const char *hostname, const char *domain,
                                         bool use_dhcp, const char *static_ip, const char *static_mask,
                                         const char *static_gw, const char *dns_primary, const char *dns_secondary,
-                                        const char *dns_search, const char *ntp_server, const char *timezone, bool use_dst);
+                                        const char *dns_search, const char *ntp_server, const char *timezone);
 static void init_led(void);
 static void set_led_color(uint8_t r, uint8_t g, uint8_t b);
 static void led_task(void *pvParameters);
@@ -164,7 +170,6 @@ static void load_config_from_nvs(void) {
     stored_dns_search[0] = '\0';
     strncpy(stored_ntp_server, DEFAULT_NTP_SERVER, MAX_NTP_SERVER_LEN - 1);
     strncpy(stored_timezone, DEFAULT_TIMEZONE, MAX_TIMEZONE_LEN - 1);
-    stored_use_dst = true;
     stored_image_url[0] = '\0';
     stored_refresh_interval = 60;
     stored_img_width = 800;
@@ -202,10 +207,6 @@ static void load_config_from_nvs(void) {
     // Load time settings
     NVS_LOAD_STR(nvs_handle, NVS_NTP_SERVER, stored_ntp_server, MAX_NTP_SERVER_LEN, DEFAULT_NTP_SERVER);
     NVS_LOAD_STR(nvs_handle, NVS_TIMEZONE, stored_timezone, MAX_TIMEZONE_LEN, DEFAULT_TIMEZONE);
-    if (nvs_get_u8(nvs_handle, NVS_USE_DST, &tmp_u8) == ESP_OK) {
-        stored_use_dst = (tmp_u8 != 0);
-    }
-
     // Load display settings
     size_t url_len = MAX_URL_LEN;
     nvs_get_str(nvs_handle, NVS_IMAGE_URL, stored_image_url, &url_len);
@@ -229,6 +230,17 @@ static void load_config_from_nvs(void) {
     if (nvs_get_u8(nvs_handle, NVS_SCHEDULE_ENABLE, &tmp_u8) == ESP_OK) {
         stored_schedule_enabled = (tmp_u8 != 0);
     }
+
+    // Load syslog settings
+    NVS_LOAD_STR(nvs_handle, NVS_SYSLOG_HOST, stored_syslog_host, MAX_SYSLOG_HOST_LEN, "");
+    if (nvs_get_u16(nvs_handle, NVS_SYSLOG_PORT, &tmp_u16) == ESP_OK) {
+        stored_syslog_port = tmp_u16;
+    } else {
+        stored_syslog_port = DEFAULT_SYSLOG_PORT;
+    }
+    if (nvs_get_u8(nvs_handle, NVS_SYSLOG_ENABLED, &tmp_u8) == ESP_OK) stored_syslog_enabled = (tmp_u8 != 0);
+    if (nvs_get_u8(nvs_handle, NVS_SYSLOG_FORMAT, &tmp_u8) == ESP_OK) stored_syslog_format = tmp_u8;
+    if (nvs_get_u8(nvs_handle, NVS_SYSLOG_TRANSPORT, &tmp_u8) == ESP_OK) stored_syslog_transport = tmp_u8;
 
     nvs_close(nvs_handle);
 
@@ -296,7 +308,7 @@ static void save_network_config_to_nvs(const char *ssid, const char *password,
                                         const char *hostname, const char *domain,
                                         bool use_dhcp, const char *static_ip, const char *static_mask,
                                         const char *static_gw, const char *dns_primary, const char *dns_secondary,
-                                        const char *dns_search, const char *ntp_server, const char *timezone, bool use_dst) {
+                                        const char *dns_search, const char *ntp_server, const char *timezone) {
     nvs_handle_t nvs_handle;
     esp_err_t err;
 
@@ -315,7 +327,6 @@ static void save_network_config_to_nvs(const char *ssid, const char *password,
         nvs_set_str(nvs_handle, NVS_DNS_SEARCH, dns_search);
         nvs_set_str(nvs_handle, NVS_NTP_SERVER, ntp_server);
         nvs_set_str(nvs_handle, NVS_TIMEZONE, timezone);
-        nvs_set_u8(nvs_handle, NVS_USE_DST, use_dst ? 1 : 0);
         nvs_commit(nvs_handle);
         nvs_close(nvs_handle);
 
@@ -333,7 +344,6 @@ static void save_network_config_to_nvs(const char *ssid, const char *password,
         strncpy(stored_dns_search, dns_search, MAX_DOMAIN_LEN - 1);
         strncpy(stored_ntp_server, ntp_server, MAX_NTP_SERVER_LEN - 1);
         strncpy(stored_timezone, timezone, MAX_TIMEZONE_LEN - 1);
-        stored_use_dst = use_dst;
 
         ESP_LOGI(TAG, "Network config saved - SSID: %s, Hostname: %s, DHCP: %s",
                  ssid, hostname, use_dhcp ? "yes" : "no");
@@ -363,6 +373,38 @@ static void save_schedule_config_to_nvs(const char *schedule_json, bool schedule
                  schedule_enabled ? "yes" : "no", strlen(schedule_json));
     } else {
         ESP_LOGE(TAG, "Failed to open NVS for writing schedule config");
+    }
+}
+
+// Save syslog configuration to NVS
+static void save_syslog_config_to_nvs(const char *host, uint16_t port,
+                                       bool enabled, uint8_t format, uint8_t transport) {
+    nvs_handle_t nvs_handle;
+    esp_err_t err;
+
+    err = nvs_open(NVS_NAMESPACE, NVS_READWRITE, &nvs_handle);
+    if (err == ESP_OK) {
+        nvs_set_str(nvs_handle, NVS_SYSLOG_HOST, host);
+        nvs_set_u16(nvs_handle, NVS_SYSLOG_PORT, port);
+        nvs_set_u8(nvs_handle, NVS_SYSLOG_ENABLED, enabled ? 1 : 0);
+        nvs_set_u8(nvs_handle, NVS_SYSLOG_FORMAT, format);
+        nvs_set_u8(nvs_handle, NVS_SYSLOG_TRANSPORT, transport);
+        nvs_commit(nvs_handle);
+        nvs_close(nvs_handle);
+
+        strncpy(stored_syslog_host, host, MAX_SYSLOG_HOST_LEN - 1);
+        stored_syslog_host[MAX_SYSLOG_HOST_LEN - 1] = '\0';
+        stored_syslog_port = port;
+        stored_syslog_enabled = enabled;
+        stored_syslog_format = format;
+        stored_syslog_transport = transport;
+
+        ESP_LOGI(TAG, "Syslog config saved - Host: %s, Port: %u, Enabled: %s, Format: %s, Transport: %s",
+                 host, port, enabled ? "yes" : "no",
+                 format == 1 ? "RFC5424" : "RFC3164",
+                 transport == 1 ? "TCP" : "UDP");
+    } else {
+        ESP_LOGE(TAG, "Failed to open NVS for syslog config");
     }
 }
 
@@ -1037,6 +1079,7 @@ static const char* html_styles =
 ".btn-blue{background:#2196F3;}"
 ".btn-orange{background:#FF9800;}"
 ".btn-red{background:#f44336;}"
+".btn-small{width:auto;display:inline-block;flex-shrink:0;}"
 "label{font-weight:bold;color:#555;display:block;margin-top:10px;}"
 ".info{background:#e7f3fe;border-left:4px solid #2196F3;padding:10px;margin:10px 0;word-wrap:break-word;}"
 ".info a{color:#1565c0;word-break:break-all;}"
@@ -1358,10 +1401,27 @@ static const char* html_network_tab =
 "<input type='text' name='timezone' value='%s' maxlength='63' placeholder='Europe/Berlin'>"
 "<p class='tz-help'>Enter a TZ database identifier (e.g., America/New_York, Asia/Tokyo, UTC). "
 "<a href='https://en.wikipedia.org/wiki/List_of_tz_database_time_zones' target='_blank'>View full list</a></p>"
-"<div class='checkbox-row'>"
-"<input type='checkbox' name='use_dst' value='1' %s>"
-"<label>Enable Daylight Saving Time</label>"
 "</div>"
+"<div class='subsection'>"
+"<h3>Remote Syslog</h3>"
+"<div class='checkbox-row'>"
+"<input type='checkbox' name='syslog_en' value='1' %s>"
+"<label>Enable Remote Syslog</label>"
+"</div>"
+"<label>Syslog Server:</label>"
+"<input type='text' name='syslog_host' value='%s' maxlength='63' placeholder='192.168.1.100'>"
+"<label>Syslog Port:</label>"
+"<input type='number' name='syslog_port' value='%u' min='1' max='65535'>"
+"<label>Format:</label>"
+"<select name='syslog_fmt'>"
+"<option value='0' %s>RFC 3164 (BSD)</option>"
+"<option value='1' %s>RFC 5424 (Structured)</option>"
+"</select>"
+"<label>Transport:</label>"
+"<select name='syslog_tp'>"
+"<option value='0' %s>UDP</option>"
+"<option value='1' %s>TCP</option>"
+"</select>"
 "</div>"
 "<input type='submit' value='Save Network Settings'>"
 "</form>";
@@ -1486,7 +1546,7 @@ static esp_err_t root_get_handler(httpd_req_t *req) {
     ESP_LOGI(TAG, "Client connected - serving config page");
 
     // Use static buffer to avoid stack overflow in httpd task
-    static char response[24576];  // Increased for schedule tab
+    static char response[32768];  // Increased for schedule + syslog
     char *p = response;
     int remaining = sizeof(response);
     int len;
@@ -1579,7 +1639,13 @@ static esp_err_t root_get_handler(httpd_req_t *req) {
              stored_dns_secondary, disabled_str,
              stored_ntp_server,
              stored_timezone,
-             stored_use_dst ? "checked" : "");
+             stored_syslog_enabled ? "checked" : "",
+             stored_syslog_host,
+             (unsigned)stored_syslog_port,
+             stored_syslog_format == 0 ? "selected" : "",
+             stored_syslog_format == 1 ? "selected" : "",
+             stored_syslog_transport == 0 ? "selected" : "",
+             stored_syslog_transport == 1 ? "selected" : "");
     p += len; remaining -= len;
 
     len = snprintf(p, remaining, "</div>");
@@ -2056,13 +2122,19 @@ static esp_err_t apply_post_handler(httpd_req_t *req) {
 // Helper function to parse network POST data
 static void parse_network_post_data(char *buf, char *ssid, char *password, char *hostname, char *domain,
                                      bool *use_dhcp, char *static_ip, char *static_mask, char *static_gw,
-                                     char *dns_primary, char *dns_secondary, char *ntp_server, char *timezone, bool *use_dst) {
+                                     char *dns_primary, char *dns_secondary, char *ntp_server, char *timezone,
+                                     char *syslog_host, uint16_t *syslog_port, bool *syslog_en,
+                                     uint8_t *syslog_fmt, uint8_t *syslog_tp) {
     char *token;
     char *saveptr;
     char decoded[MAX_URL_LEN];
 
     *use_dhcp = true;  // Default
-    *use_dst = true;   // Default
+    syslog_host[0] = '\0';
+    *syslog_port = DEFAULT_SYSLOG_PORT;
+    *syslog_en = false;
+    *syslog_fmt = 0;
+    *syslog_tp = 0;
 
     token = strtok_r(buf, "&", &saveptr);
     while (token != NULL) {
@@ -2085,7 +2157,11 @@ static void parse_network_post_data(char *buf, char *ssid, char *password, char 
             else if (strcmp(key, "dns_secondary") == 0) strncpy(dns_secondary, decoded, MAX_IP_LEN - 1);
             else if (strcmp(key, "ntp_server") == 0) strncpy(ntp_server, decoded, MAX_NTP_SERVER_LEN - 1);
             else if (strcmp(key, "timezone") == 0) strncpy(timezone, decoded, MAX_TIMEZONE_LEN - 1);
-            else if (strcmp(key, "use_dst") == 0) *use_dst = true;
+            else if (strcmp(key, "syslog_en") == 0) *syslog_en = true;
+            else if (strcmp(key, "syslog_host") == 0) strncpy(syslog_host, decoded, MAX_SYSLOG_HOST_LEN - 1);
+            else if (strcmp(key, "syslog_port") == 0) *syslog_port = (uint16_t)atoi(decoded);
+            else if (strcmp(key, "syslog_fmt") == 0) *syslog_fmt = (uint8_t)atoi(decoded);
+            else if (strcmp(key, "syslog_tp") == 0) *syslog_tp = (uint8_t)atoi(decoded);
         }
         token = strtok_r(NULL, "&", &saveptr);
     }
@@ -2109,7 +2185,11 @@ static esp_err_t save_network_post_handler(httpd_req_t *req) {
     char new_dns_secondary[MAX_IP_LEN] = {0};
     char new_ntp_server[MAX_NTP_SERVER_LEN] = {0};
     char new_timezone[MAX_TIMEZONE_LEN] = {0};
-    bool new_use_dst = true;
+    char new_syslog_host[MAX_SYSLOG_HOST_LEN] = {0};
+    uint16_t new_syslog_port = DEFAULT_SYSLOG_PORT;
+    bool new_syslog_en = false;
+    uint8_t new_syslog_fmt = 0;
+    uint8_t new_syslog_tp = 0;
     int ret, remaining = req->content_len;
 
     if (remaining > sizeof(buf) - 1) {
@@ -2129,7 +2209,9 @@ static esp_err_t save_network_post_handler(httpd_req_t *req) {
     // Parse the POST data
     parse_network_post_data(buf, new_ssid, new_password, new_hostname, new_domain,
                             &new_use_dhcp, new_static_ip, new_static_mask, new_static_gw,
-                            new_dns_primary, new_dns_secondary, new_ntp_server, new_timezone, &new_use_dst);
+                            new_dns_primary, new_dns_secondary, new_ntp_server, new_timezone,
+                            new_syslog_host, &new_syslog_port, &new_syslog_en,
+                            &new_syslog_fmt, &new_syslog_tp);
 
     ESP_LOGI(TAG, "Network config - SSID: %s, Hostname: %s, DHCP: %s",
              new_ssid, new_hostname, new_use_dhcp ? "yes" : "no");
@@ -2138,7 +2220,19 @@ static esp_err_t save_network_post_handler(httpd_req_t *req) {
     save_network_config_to_nvs(new_ssid, new_password, new_hostname, new_domain,
                                 new_use_dhcp, new_static_ip, new_static_mask, new_static_gw,
                                 new_dns_primary, new_dns_secondary, stored_dns_search,
-                                new_ntp_server, new_timezone, new_use_dst);
+                                new_ntp_server, new_timezone);
+
+    // Save syslog config to NVS
+    save_syslog_config_to_nvs(new_syslog_host, new_syslog_port, new_syslog_en,
+                               new_syslog_fmt, new_syslog_tp);
+
+    // Apply syslog settings immediately
+    syslog_remote_deinit();
+    if (new_syslog_en && new_syslog_host[0] != '\0') {
+        syslog_remote_init(new_syslog_host, new_syslog_port, stored_hostname,
+                           (syslog_format_t)new_syslog_fmt,
+                           (syslog_transport_t)new_syslog_tp);
+    }
 
     // Send success response
     const char* resp_str =
@@ -2572,6 +2666,9 @@ static void init_boot_button(void) {
 static void enter_deep_sleep(uint32_t sleep_minutes) {
     ESP_LOGI(TAG, "Preparing to enter deep sleep for %lu minutes...", (unsigned long)sleep_minutes);
 
+    // Shut down remote syslog before sleep
+    syslog_remote_deinit();
+
     // Stop LED task from overriding our LED control
     preparing_sleep = true;
     vTaskDelay(pdMS_TO_TICKS(LED_BLINK_INTERVAL + 50));  // Wait for LED task to notice
@@ -2770,6 +2867,13 @@ void app_main(void) {
     }
 
     ESP_LOGI(TAG, "WiFi connected!");
+
+    // Initialize remote syslog if configured
+    if (stored_syslog_enabled && stored_syslog_host[0] != '\0') {
+        syslog_remote_init(stored_syslog_host, stored_syslog_port, stored_hostname,
+                           (syslog_format_t)stored_syslog_format,
+                           (syslog_transport_t)stored_syslog_transport);
+    }
 
     // Wait for NTP sync if NTP server is configured (60 second timeout)
     // This ensures time is accurate before downloading images

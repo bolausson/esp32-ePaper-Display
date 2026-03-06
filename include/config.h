@@ -36,11 +36,16 @@
 // NVS Storage Keys - Time Configuration
 #define NVS_NTP_SERVER      "ntp_server"
 #define NVS_TIMEZONE        "timezone"
-#define NVS_USE_DST         "use_dst"
-
 // NVS Storage Keys - Schedule Plans
 #define NVS_SCHEDULE_JSON   "sched_json"
 #define NVS_SCHEDULE_ENABLE "sched_en"
+
+// NVS Storage Keys - Syslog Configuration
+#define NVS_SYSLOG_HOST      "syslog_host"
+#define NVS_SYSLOG_PORT      "syslog_port"
+#define NVS_SYSLOG_ENABLED   "syslog_en"
+#define NVS_SYSLOG_FORMAT    "syslog_fmt"
+#define NVS_SYSLOG_TRANSPORT "syslog_tp"
 
 // WiFi Configuration
 #define WIFI_MAXIMUM_RETRY  5
@@ -76,6 +81,7 @@
 #define MAX_NTP_SERVER_LEN  64
 #define MAX_TIMEZONE_LEN    48
 #define MAX_SCHEDULE_JSON   2048  // Max size for schedule plans JSON
+#define MAX_SYSLOG_HOST_LEN 64
 
 // Schedule Plan limits
 #define MAX_SCHEDULE_PLANS  4     // Maximum number of schedule plans
@@ -85,6 +91,7 @@
 #define DEFAULT_HOSTNAME    "esp32-display"
 #define DEFAULT_NTP_SERVER  "pool.ntp.org"
 #define DEFAULT_TIMEZONE    "Europe/Berlin"
+#define DEFAULT_SYSLOG_PORT 514
 
 #endif // CONFIG_H
 
