@@ -1,0 +1,5 @@
+# Auto detect text files and normalize line endings
+* text=auto
+
+# Force LF for shell scripts (CRLF breaks bash)
+*.sh text eol=lf
