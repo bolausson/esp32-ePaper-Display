@@ -231,7 +231,7 @@ create_archive() {
     done
 
     # Create tar archive
-    tar -czvf "$archive_name" "$release_folder"
+    tar -czf "$archive_name" "$release_folder"
 
     # Cleanup release folder (keep archive)
     rm -rf "$release_folder"
