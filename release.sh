@@ -68,14 +68,14 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
-log_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
-log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
+log_info() { echo -e "${BLUE}[INFO]${NC} $1" >&2; }
+log_success() { echo -e "${GREEN}[SUCCESS]${NC} $1" >&2; }
+log_warn() { echo -e "${YELLOW}[WARN]${NC} $1" >&2; }
 log_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
+    echo -e "${RED}[ERROR]${NC} $1" >&2
     if [[ -n "$2" ]]; then
-        echo -e "${RED}        Details:${NC}"
-        echo "$2" | sed 's/^/        /'
+        echo -e "${RED}        Details:${NC}" >&2
+        echo "$2" | sed 's/^/        /' >&2
     fi
     exit 1
 }
@@ -135,8 +135,8 @@ check_prerequisites() {
             "Current directory: $(pwd)"
     fi
 
-    # Check for uncommitted changes
-    local dirty_files=$(git status --porcelain)
+    # Check for uncommitted changes (ignore untracked files)
+    local dirty_files=$(git status --porcelain -uno)
     if [[ -n "$dirty_files" ]]; then
         log_error "Working directory is not clean. Commit or stash changes first." \
             "$dirty_files"
@@ -199,7 +199,7 @@ get_release_folder() {
 # Get the archive filename
 get_archive_name() {
     local folder="$1"
-    echo "${folder}.tar"
+    echo "${folder}.tar.gz"
 }
 
 create_archive() {
@@ -231,7 +231,7 @@ create_archive() {
     done
 
     # Create tar archive
-    tar -cvf "$archive_name" "$release_folder"
+    tar -czvf "$archive_name" "$release_folder"
 
     # Cleanup release folder (keep archive)
     rm -rf "$release_folder"
