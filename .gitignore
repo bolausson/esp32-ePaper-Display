@@ -15,6 +15,9 @@ build/
 sdkconfig.old
 dependencies.lock
 
+# Claude Code
+.claude/
+
 # OS files
 .DS_Store
 Thumbs.db
