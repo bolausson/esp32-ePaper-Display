@@ -1312,7 +1312,7 @@ static const char* html_display_tab =
 "<label>SSL Certificate Verification:</label>"
 "<div class='checkbox-row'>"
 "<input type='checkbox' name='ssl_skip' value='1' %s>"
-"<label>Skip SSL verification (allow self-signed certificates)</label>"
+"<span>Skip SSL verification (allow self-signed certificates)</span>"
 "</div>"
 "<label>Refresh Interval (minutes):</label>"
 "<input type='number' name='refresh' value='%lu' min='1' max='1440' required>"

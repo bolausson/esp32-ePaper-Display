@@ -310,6 +310,10 @@ The create_archive step may have failed. Check for errors above."
         "$archive_name"
 
     log_success "GitHub release created: $tag"
+
+    # Cleanup local archive
+    rm -f "$archive_name"
+    log_info "Cleaned up local archive: $archive_name"
 }
 
 show_summary() {
